@@ -7,3 +7,6 @@
 [submodule "modules/mMultiThreading"]
 	path = modules/mMultiThreading
 	url = https://github.com/SkyLined/mMultiThreading/
+[submodule "modules/mTCPIPConnections"]
+	path = modules/mTCPIPConnections
+	url = https://github.com/SkyLined/mTCPIPConnections/
