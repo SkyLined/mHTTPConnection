@@ -6,16 +6,18 @@
     "mWindowsSDK"
   ], 
   "asOptionalProductNames": [
-    "mDebugOutput",
+    "mDebugOutput", 
     "oConsole"
-  ],
-  "oProductVersion": "2020-06-17 08:47", 
+  ], 
+  "oProductVersion": "2020-06-17 16:28", 
   "oRepository": {
     "sBranch": "master", 
     "sRepositoryName": "mHTTPConnections", 
     "sType": "GitHub", 
     "sUserName": "SkyLined"
   }, 
+  "oTrialPeriodDuration": null, 
+  "sLicenseServerURL": null, 
   "sProductAuthor": "SkyLined", 
   "sProductName": "mHTTPConnections", 
   "sProductURL": "https://github.com/SkyLined/mHTTPConnections"
