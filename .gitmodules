@@ -10,3 +10,6 @@
 [submodule "modules/mTCPIPConnections"]
 	path = modules/mTCPIPConnections
 	url = https://github.com/SkyLined/mTCPIPConnections/
+[submodule "modules\\mHTTPProtocol"]
+	path = modules\\mHTTPProtocol
+	url = https://github.com/SkyLined/mHTTPProtocol
