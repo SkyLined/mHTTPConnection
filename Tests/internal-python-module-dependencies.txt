@@ -15,10 +15,8 @@ inspect
 itertools
 keyword
 math
-mHTTPProtocol
 msvcrt
 nturl2path
-oConsole
 opcode
 platform
 Queue
