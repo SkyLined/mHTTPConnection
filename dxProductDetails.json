@@ -9,7 +9,7 @@
     "mDebugOutput", 
     "oConsole"
   ], 
-  "oProductVersion": "2020-06-17 16:54", 
+  "oProductVersion": "2020-06-17 22:04", 
   "oRepository": {
     "sBranch": "master", 
     "sRepositoryName": "mHTTPConnections", 
