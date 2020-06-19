@@ -13,7 +13,7 @@ except: # Do nothing if not available.
 from mTCPIPConnections import cTransactionalBufferedTCPIPConnection;
 from mHTTPProtocol import cHTTPRequest, cHTTPResponse, iHTTPMessage;
 
-from .cException import cException;
+from .mHTTPExceptions import *;
 
 gbDebugOutputFullHTTPMessages = False;
 
@@ -32,10 +32,6 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
   uzMaxChunkSizeCharacters = 16;
   cHTTPRequest = cHTTPRequest;
   cHTTPResponse = cHTTPResponse;
-  
-  class cOutOfBandDataException(cException):
-    pass; # The remote send data when it was not expected to do so (i.e. the server send data before a request was made).
-  cInvalidMessageException = iHTTPMessage.cInvalidMessageException;
   
   # Create HTTP Messages
   @staticmethod
@@ -73,7 +69,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
       if sOutOfBandData:
         # The server sent out-of-band data; close the connection and raise an exception.
         oSelf.fDisconnect();
-        raise oSelf.cOutOfBandDataException(
+        raise cOutOfBandDataException(
           "Out-of-band data was received before request was sent!",
           sOutOfBandData,
         );
@@ -216,12 +212,12 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
           if uzContentLengthHeaderValue < 0:
             raise ValueError();
         except ValueError:
-          raise cHTTPMessage.cInvalidMessageException(
+          raise cInvalidMessageException(
             "The Content-Length header was invalid.",
             {"oContentLengthHeader": ozContentLengthHeader},
           );
         if uzMaxBodySize is not None and uzContentLengthHeaderValue > uzMaxBodySize:
-          raise cHTTPMessage.cInvalidMessageException(
+          raise cInvalidMessageException(
             "The Content-Length header was too large.",
             {"oContentLengthHeader": ozContentLengthHeader, "uMaxBodySize": uzMaxBodySize},
           );
@@ -236,7 +232,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
           for sIllegalName in ["Transfer-Encoding", "Content-Length"]:
             ozIllegalHeader = ozAdditionalHeaders.fozGetUniqueHeaderForName(sIllegalName);
             if ozIllegalHeader is not None:
-              raise cHTTPMessage.cInvalidMessageException(
+              raise cInvalidMessageException(
                 "The message was not valid because it contained a %s header after the chunked body." % sIllegalName,
                 ozIllegalHeader.fsSerialize(),
               );
@@ -266,7 +262,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
       oSelf.fFireCallbacks("message received", oMessage);
       
       return oMessage;
-    except cHTTPMessage.cInvalidMessageException:
+    except cInvalidMessageException:
       # When an invalid message is detected, we disconnect because we cannot
       # guarantee we can interpret the data correctly anymore.
       oSelf.fDisconnect();
@@ -278,7 +274,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
     szStatusLineCRLF = oSelf.fszReadUntilMarker("\r\n", uzMaxNumberOfBytes = uzMaxStatusLineSize);
     if szStatusLineCRLF is None:
       sStatusLine = oSelf.fsReadBufferedData();
-      raise cHTTPMessage.cInvalidMessageException(
+      raise cInvalidMessageException(
         "The status line was too large.",
         {"sStatusLine": sStatusLine, "uMaxStatusLineSize": uzMaxStatusLineSize},
       );
@@ -294,7 +290,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
       szHeaderLineCRLF = oSelf.fszReadUntilMarker("\r\n", uzMaxNumberOfBytes = uzMaxHeaderLineSize);
       if szHeaderLineCRLF is None:
         sHeaderLine = oSelf.fsReadBufferedData();
-        raise cHTTPMessage.cInvalidMessageException(
+        raise cInvalidMessageException(
           "A hreader line was too large.",
           {"sHeaderLine": sHeaderLine, "uMaxHeaderLineSize": uzMaxHeaderLineSize},
         );
@@ -318,7 +314,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
         oSelf.fDisconnect();
         return (asBodyChunks, True);
       if uzMaxNumberOfChunks is not None and len(asBodyChunks) == uzMaxNumberOfChunks:
-        raise cHTTPMessage.cInvalidMessageException(
+        raise cInvalidMessageException(
           "There are too many body chunks.",
           {"uMaxNumberOfChunks": uzMaxNumberOfChunks},
         );
@@ -328,7 +324,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
       if uzContentLengthHeaderValue is not None:
         uMinimumNumberOfBodyChunksBytes = uTotalNumberOfBodyChunkBytes + 5; # minimum is "0\r\n\r\n"
         if uMinimumNumberOfBodyChunksBytes > uzContentLengthHeaderValue:
-          raise cHTTPMessage.cInvalidMessageException(
+          raise cInvalidMessageException(
             "There are more bytes in the body chunks than the Content-Length header indicated.",
             {"uContentLengthHeaderValue": uzContentLengthHeaderValue, "uMinimumNumberOfBodyChunksBytes": uMinimumNumberOfBodyChunksBytes},
           );
@@ -341,21 +337,21 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
       szChunkHeaderLineCRLF = oSelf.fszReadUntilMarker("\r\n", uzMaxNumberOfBytes = uzMaxChunkHeaderLineSize);
       if szChunkHeaderLineCRLF is None:
         sChunkHeaderLine = oSelf.fsReadBufferedData();
-        raise cHTTPMessage.cInvalidMessageException(
+        raise cInvalidMessageException(
           "A body chunk header line was too large.",
           {"sChunkHeaderLine": sChunkHeaderLine, "uMaxChunkHeaderLineSize": uzMaxChunkHeaderLineSize},
         );
       uTotalNumberOfBodyChunkBytes += len(szChunkHeaderLineCRLF);
       sChunkHeaderLine = szChunkHeaderLineCRLF[:-2];
       if ";" in sChunkHeaderLine:
-        raise cHTTPMessage.cInvalidMessageException(
+        raise cInvalidMessageException(
           "A body chunk header line contained an extension, which is not currently supported.",
           {"sChunkHeaderLine": sChunkHeaderLine},
         );
       try:
         uChunkSize = long(sChunkHeaderLine, 16);
       except ValueError:
-        raise cHTTPMessage.cInvalidMessageException(
+        raise cInvalidMessageException(
           "A body chunk header line contained an invalid character in the chunk size.",
           {"sChunkHeaderLine": sChunkHeaderLine},
         );
@@ -364,19 +360,19 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
       if uzContentLengthHeaderValue is not None:
         uMinimumNumberOfBodyChunksBytes = uTotalNumberOfBodyChunkBytes + uChunkSize + 2 + 7; # minimum after this chunk is "\r\n"+"0\r\n\r\n"
         if uMinimumNumberOfBodyChunksBytes > uzContentLengthHeaderValue:
-          raise cHTTPMessage.cInvalidMessageException(
+          raise cInvalidMessageException(
             "There are more bytes in the body chunks than the Content-Length header indicated.",
             {"uContentLengthHeaderValue": uzContentLengthHeaderValue, "uMinimumNumberOfBodyChunksBytes": uMinimumNumberOfBodyChunksBytes},
           );
       if uzMaxChunkSize is not None and uChunkSize > uzMaxChunkSize:
-        raise cHTTPMessage.cInvalidMessageException(
+        raise cInvalidMessageException(
           "A body chunk was too large.",
           {"uMaxChunkSize": uzMaxChunkSize, "uChunkSize": uChunkSize},
         );
       # Check chunk size and number of chunks
       uTotalNumberOfBodyBytesInChunks += uChunkSize;
       if uzMaxBodySize is not None and uTotalNumberOfBodyBytesInChunks > uzMaxBodySize:
-        raise cHTTPMessage.cInvalidMessageException(
+        raise cInvalidMessageException(
           "There are too many bytes in the body chunks.",
           {"uMaxBodySize": uzMaxBodySize, "uMinimumNumberOfBodyBytesInBodyChunks": uTotalNumberOfBodyBytesInChunks},
         );
@@ -384,7 +380,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
       fShowDebugOutput("Reading response body chunk #%d (%d bytes)..." % (len(asBodyChunks) + 1, uChunkSize));
       sChunkCRLF = oSelf.fsReadBytes(uChunkSize + 2);
       if sChunkCRLF[-2:] != "\r\n":
-        raise cHTTPMessage.cInvalidMessageException(
+        raise cInvalidMessageException(
           "A body chunk did not end with CRLF.",
           {"sChunkCRLF": sChunkCRLF},
         );
@@ -392,7 +388,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
       asBodyChunks.append(sChunkCRLF[:-2]);
     if uzContentLengthHeaderValue is not None:
       if uTotalNumberOfBodyChunkBytes < uzContentLengthHeaderValue:
-        raise cHTTPMessage.cInvalidMessageException(
+        raise cInvalidMessageException(
           "There are less bytes in the body chunks than the Content-Length header indicated.",
           {"uContentLengthHeaderValue": uzContentLengthHeaderValue, "uTotalNumberOfBodyChunkBytes": uTotalNumberOfBodyChunkBytes},
         );

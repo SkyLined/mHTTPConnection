@@ -10,7 +10,7 @@ except: # Do nothing if not available.
   fEnableAllDebugOutput = lambda: None;
   cCallStack = fTerminateWithException = fTerminateWithConsoleOutput = None;
 
-from .cException import cException;
+from .mHTTPExceptions import *;
 from .cHTTPConnection import cHTTPConnection;
 
 from mMultiThreading import cLock, cWithCallbacks;
@@ -22,15 +22,15 @@ gnDeadlockTimeoutInSeconds = 1; # We're not doing anything time consuming, so th
 guzDefaultMaxNumerOfConnectionsToServer = 10;
 
 class cHTTPConnectionsToServerPool(cWithCallbacks):
-  class cMaxConnectionsReachedException(cException):
-    pass; # The client would need to create more connections to the server than allowed.
-  
   @ShowDebugOutput
-  def __init__(oSelf, oServerBaseURL, uzMaxNumerOfConnectionsToServer = None, ozSSLContext = None, bCheckHostname = False):
+  def __init__(oSelf,
+    oServerBaseURL,
+    uzMaxNumerOfConnectionsToServer = None,
+    ozSSLContext = None
+  ):
     oSelf.__oServerBaseURL = oServerBaseURL;
     oSelf.__uzMaxNumerOfConnectionsToServer = uzMaxNumerOfConnectionsToServer if uzMaxNumerOfConnectionsToServer is not None else guzDefaultMaxNumerOfConnectionsToServer;
     oSelf.__ozSSLContext = ozSSLContext;
-    oSelf.__bCheckHostname = bCheckHostname;
     
     oSelf.__oConnectionsPropertyLock = cLock(
       "%s.__oConnectionsPropertyLock" % oSelf.__class__.__name__,
@@ -183,7 +183,7 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
     oSelf.__oConnectionsPropertyLock.fAcquire();
     try:
       if len(oSelf.__aoConnections) + oSelf.__uPendingConnects == oSelf.__uzMaxNumerOfConnectionsToServer:
-        raise oSelf.cMaxConnectionsReachedException(
+        raise cMaxConnectionsReachedException(
           "Cannot create more connections to the server",
           {"uMaxNumerOfConnectionsToServer"}
         );
@@ -198,7 +198,6 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
         uPort = oSelf.__oServerBaseURL.uPort,
         nzConnectTimeoutInSeconds = nzConnectTimeoutInSeconds,
         ozSSLContext = oSelf.__ozSSLContext,
-        bCheckHostname = oSelf.__bCheckHostname,
         nzSecureTimeoutInSeconds = nzSecureTimeoutInSeconds,
       );
     except Exception as oException:
