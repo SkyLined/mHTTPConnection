@@ -10,7 +10,7 @@
     "mSSL", 
     "oConsole"
   ], 
-  "oProductVersion": "2020-06-22 15:52", 
+  "oProductVersion": "2020-06-23 09:14", 
   "oRepository": {
     "sBranch": "master", 
     "sRepositoryName": "mHTTPConnections", 
