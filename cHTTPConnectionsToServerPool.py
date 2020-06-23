@@ -144,7 +144,9 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
     if oConnection is None:
       if oSelf.__bStopping:
         return None;
-      oConnection = oSelf.__foCreateNewConnectionAndStartTransaction(nzConnectTimeoutInSeconds, nzSecureTimeoutInSeconds, nzTransactionTimeoutInSeconds);
+      oConnection = oSelf.__foCreateNewConnectionAndStartTransaction(
+        nzConnectTimeoutInSeconds, nzSecureTimeoutInSeconds, nzTransactionTimeoutInSeconds
+      );
       if oSelf.__bStopping:
         return None;
       assert oConnection, \
@@ -177,7 +179,9 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
       oSelf.__oConnectionsPropertyLock.fRelease();
   
   @ShowDebugOutput
-  def __foCreateNewConnectionAndStartTransaction(oSelf, nzConnectTimeoutInSeconds, nzSecureTimeoutInSeconds, nzTransactionTimeoutInSeconds):
+  def __foCreateNewConnectionAndStartTransaction(oSelf,
+    nzConnectTimeoutInSeconds, nzSecureTimeoutInSeconds, nzTransactionTimeoutInSeconds
+  ):
     # Make sure we would not create too many connections and add a pending connection:
     # Can throw a max-connections-reached exception
     oSelf.__oConnectionsPropertyLock.fAcquire();
@@ -185,7 +189,7 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
       if len(oSelf.__aoConnections) + oSelf.__uPendingConnects == oSelf.__uzMaxNumerOfConnectionsToServer:
         raise cMaxConnectionsReachedException(
           "Cannot create more connections to the server",
-          {"uMaxNumerOfConnectionsToServer"}
+          {"uMaxNumerOfConnectionsToServer": oSelf.__uzMaxNumerOfConnectionsToServer}
         );
       oSelf.__uPendingConnects += 1;
     finally:
