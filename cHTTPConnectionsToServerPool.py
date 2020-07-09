@@ -10,7 +10,7 @@ except: # Do nothing if not available.
   fEnableAllDebugOutput = lambda: None;
   cCallStack = fTerminateWithException = fTerminateWithConsoleOutput = None;
 
-from .mHTTPExceptions import *;
+from .mExceptions import *;
 from .cHTTPConnection import cHTTPConnection;
 
 from mMultiThreading import cLock, cWithCallbacks;
