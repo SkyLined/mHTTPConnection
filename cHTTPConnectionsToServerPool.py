@@ -19,17 +19,17 @@ from mMultiThreading import cLock, cWithCallbacks;
 # These locks should only ever be locked for a short time; if it is locked for too long, it is considered a "deadlock"
 # bug, where "too long" is defined by the following value:
 gnDeadlockTimeoutInSeconds = 1; # We're not doing anything time consuming, so this should suffice.
-guzDefaultMaxNumerOfConnectionsToServer = 10;
+guzDefaultMaxNumberOfConnectionsToServer = 10;
 
 class cHTTPConnectionsToServerPool(cWithCallbacks):
   @ShowDebugOutput
   def __init__(oSelf,
     oServerBaseURL,
-    uzMaxNumerOfConnectionsToServer = None,
+    uzMaxNumberOfConnectionsToServer = None,
     ozSSLContext = None
   ):
     oSelf.__oServerBaseURL = oServerBaseURL;
-    oSelf.__uzMaxNumerOfConnectionsToServer = uzMaxNumerOfConnectionsToServer if uzMaxNumerOfConnectionsToServer is not None else guzDefaultMaxNumerOfConnectionsToServer;
+    oSelf.__uzMaxNumberOfConnectionsToServer = uzMaxNumberOfConnectionsToServer if uzMaxNumberOfConnectionsToServer is not None else guzDefaultMaxNumberOfConnectionsToServer;
     oSelf.__ozSSLContext = ozSSLContext;
     
     oSelf.__oConnectionsPropertyLock = cLock(
@@ -186,10 +186,10 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
     # Can throw a max-connections-reached exception
     oSelf.__oConnectionsPropertyLock.fAcquire();
     try:
-      if len(oSelf.__aoConnections) + oSelf.__uPendingConnects == oSelf.__uzMaxNumerOfConnectionsToServer:
+      if len(oSelf.__aoConnections) + oSelf.__uPendingConnects == oSelf.__uzMaxNumberOfConnectionsToServer:
         raise cMaxConnectionsReachedException(
           "Cannot create more connections to the server",
-          {"uMaxNumerOfConnectionsToServer": oSelf.__uzMaxNumerOfConnectionsToServer}
+          {"uMaxNumberOfConnectionsToServer": oSelf.__uzMaxNumberOfConnectionsToServer}
         );
       oSelf.__uPendingConnects += 1;
     finally:
