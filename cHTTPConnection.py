@@ -22,7 +22,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
   uzDefaultMaxHeaderNameSize = 10*1000;
   uzDefaultMaxHeaderValueSize = 10*1000;
   uzDefaultMaxNumberOfHeaders = 256;
-  uzDefaultMaxBodySize = 10*1000*1000;
+  uzDefaultMaxBodySize = 1000*1000*1000;
   uzDefaultMaxChunkSize = 10*1000*1000;
   uzDefaultMaxNumberOfChunks = 1000*1000;
   # The HTTP RFC does not provide an upper limit to the maximum number of characters a chunk size can contain.
