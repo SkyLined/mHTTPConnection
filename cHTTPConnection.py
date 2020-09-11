@@ -210,7 +210,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
         try:
           uzContentLengthHeaderValue = long(ozContentLengthHeader.sValue);
           if uzContentLengthHeaderValue < 0:
-            raise ValueError();
+            raise ValueError("Content-Length value %s results in content length %s!?" % (ozContentLengthHeader.sValue, uzContentLengthHeaderValue));
         except ValueError:
           raise cHTTPInvalidMessageException(
             "The Content-Length header was invalid.",
