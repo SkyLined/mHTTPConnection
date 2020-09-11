@@ -129,6 +129,9 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
     oRequest,
     nzConnectTimeoutInSeconds = None, nzSecureTimeoutInSeconds = None, nzTransactionTimeoutInSeconds = None,
     bEndTransaction = True,
+    uzMaxStatusLineSize = None,
+    uzMaxHeaderNameSize = None, uzMaxHeaderValueSize = None, uzMaxNumberOfHeaders = None,
+    uzMaxBodySize = None, uzMaxChunkSize = None, uzMaxNumberOfChunks = None,
     uzMaximumNumberOfChunksBeforeDisconnecting = None, # disconnect and return response once this many chunks are received.
   ):
     # Send a request to the server and receive a response.
@@ -154,6 +157,13 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
     oResponse = oConnection.fozSendRequestAndReceiveResponse(
       oRequest,
       bStartTransaction = False,
+      uzMaxStatusLineSize = uzMaxStatusLineSize,
+      uzMaxHeaderNameSize = uzMaxHeaderNameSize,
+      uzMaxHeaderValueSize = uzMaxHeaderValueSize,
+      uzMaxNumberOfHeaders = uzMaxNumberOfHeaders,
+      uzMaxBodySize = uzMaxBodySize,
+      uzMaxChunkSize = uzMaxChunkSize,
+      uzMaxNumberOfChunks = uzMaxNumberOfChunks,
       uzMaximumNumberOfChunksBeforeDisconnecting = uzMaximumNumberOfChunksBeforeDisconnecting, # disconnect and return response once this many chunks are received.
       bEndTransaction = bEndTransaction,
     );
