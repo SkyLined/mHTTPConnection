@@ -14,22 +14,23 @@ from mTCPIPConnections import cTransactionalBufferedTCPIPConnection;
 from mHTTPProtocol import cHTTPRequest, cHTTPResponse, iHTTPMessage;
 
 from .mExceptions import *;
+from .mNotProvided import *;
 
 gbDebugOutputFullHTTPMessages = False;
 
 class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
-  uzDefaultMaxReasonPhraseSize = 1000;
-  uzDefaultMaxHeaderNameSize = 10*1000;
-  uzDefaultMaxHeaderValueSize = 10*1000;
-  uzDefaultMaxNumberOfHeaders = 256;
-  uzDefaultMaxBodySize = 1000*1000*1000;
-  uzDefaultMaxChunkSize = 10*1000*1000;
-  uzDefaultMaxNumberOfChunks = 1000*1000;
+  u0DefaultMaxReasonPhraseSize = 1000;
+  u0DefaultMaxHeaderNameSize = 10*1000;
+  u0DefaultMaxHeaderValueSize = 10*1000;
+  u0DefaultMaxNumberOfHeaders = 256;
+  u0DefaultMaxBodySize = 1000*1000*1000;
+  u0DefaultMaxChunkSize = 10*1000*1000;
+  u0DefaultMaxNumberOfChunks = 1000*1000;
   # The HTTP RFC does not provide an upper limit to the maximum number of characters a chunk size can contain.
   # So, by padding a valid chunk size on the left with "0", one could theoretically create a valid chunk header that has
   # an infinite size. To prevent us accepting such an obviously invalid value, we will accept no chunk size containing
   # more than 16 chars (i.e. 64-bit numbers).
-  uzMaxChunkSizeCharacters = 16;
+  u0MaxChunkSizeCharacters = 16;
   cHTTPRequest = cHTTPRequest;
   cHTTPResponse = cHTTPResponse;
   
@@ -52,7 +53,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
   
   # Send HTTP Messages
   @ShowDebugOutput
-  def fbSendRequest(oSelf, oRequest, bStartTransaction = True, nzTransactionTimeoutInSeconds = None):
+  def fbSendRequest(oSelf, oRequest, bStartTransaction = True, n0TransactionTimeoutInSeconds = None):
     # Attempt to write a request to the connection.
     # Optionally start a transaction before doing so.
     # If an exception is thrown, a transaction started here will be ended again.
@@ -60,7 +61,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
     # return False if an optional transaction could not be started.
     # return True if the request was sent.
     # Can throw timeout, out-of-band-data, shutdown or disconnected exception.
-    if bStartTransaction and not oSelf.fbStartTransaction(nzTransactionTimeoutInSeconds):
+    if bStartTransaction and not oSelf.fbStartTransaction(n0TransactionTimeoutInSeconds):
       # The connection is stopping or disconnected; the request will not be sent.
       return False;
     try:
@@ -113,10 +114,10 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
   # Read HTTP Messages
   @ShowDebugOutput
   def foReceiveRequest(oSelf,
-    uzMaxStatusLineSize = None,
-    uzMaxHeaderNameSize = None, uzMaxHeaderValueSize = None, uzMaxNumberOfHeaders = None,
-    uzMaxBodySize = None, uzMaxChunkSize = None, uzMaxNumberOfChunks = None, # throw exception if more than this many chunks are received
-    bStartTransaction = True, nzTransactionTimeoutInSeconds = None,
+    uzMaxStatusLineSize = zNotProvided,
+    uzMaxHeaderNameSize = zNotProvided, uzMaxHeaderValueSize = zNotProvided, uzMaxNumberOfHeaders = zNotProvided,
+    uzMaxBodySize = None,zNotProvideduzMaxChunkSize = zNotProvided, uzMaxNumberOfChunks = zNotProvided, # throw exception if more than this many chunks are received
+    bStartTransaction = True, n0TransactionTimeoutInSeconds = None,
   ):
     # Attempt to receive a request from the connection.
     # Optionally start a transaction before doing so.
@@ -124,7 +125,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
     # Return None if an optional transaction could not be started.
     # Returns a cHTTPRequest object if a request was received.
     # Can throw timeout, shutdown or disconnected exception.
-    if bStartTransaction and not oSelf.fbStartTransaction(nzTransactionTimeoutInSeconds):
+    if bStartTransaction and not oSelf.fbStartTransaction(n0TransactionTimeoutInSeconds):
       # Another transaction is active
       return None;
     try:
@@ -134,7 +135,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
         uzMaxStatusLineSize = uzMaxStatusLineSize,
         uzMaxHeaderNameSize = uzMaxHeaderNameSize, uzMaxHeaderValueSize = uzMaxHeaderValueSize, uzMaxNumberOfHeaders = uzMaxNumberOfHeaders,
         uzMaxBodySize = uzMaxBodySize, uzMaxChunkSize = uzMaxChunkSize, uzMaxNumberOfChunks = uzMaxNumberOfChunks,
-        uzMaximumNumberOfChunksBeforeDisconnecting = None,
+        u0MaximumNumberOfChunksBeforeDisconnecting = None,
       );
       oSelf.fFireCallbacks("request received", oRequest);
       return oRequest;
@@ -173,82 +174,94 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
   @ShowDebugOutput
   def __foReceiveMessage(oSelf,
     cHTTPMessage,
-    uzMaxStatusLineSize,
-    uzMaxHeaderNameSize, uzMaxHeaderValueSize, uzMaxNumberOfHeaders,
-    uzMaxBodySize, uzMaxChunkSize, uzMaxNumberOfChunks,
-    uzMaximumNumberOfChunksBeforeDisconnecting,
+    u0zMaxStatusLineSize,
+    u0zMaxHeaderNameSize,
+    u0zMaxHeaderValueSize,
+    u0zMaxNumberOfHeaders,
+    u0zMaxBodySize,
+    u0zMaxChunkSize,
+    u0zMaxNumberOfChunks,
+    u0zMaximumNumberOfChunksBeforeDisconnecting,
   ):
     # Read and parse a HTTP message.
     # Returns a cHTTPMessage instance.
     # Can throw timeout, shutdown or disconnected exception.
-    uzMaxStatusLineSize  = uzMaxStatusLineSize  if uzMaxStatusLineSize   is not None else oSelf.uzDefaultMaxReasonPhraseSize;
-    uzMaxHeaderNameSize  = uzMaxHeaderNameSize  if uzMaxHeaderNameSize   is not None else oSelf.uzDefaultMaxHeaderNameSize;
-    uzMaxHeaderValueSize = uzMaxHeaderValueSize if uzMaxHeaderValueSize  is not None else oSelf.uzDefaultMaxHeaderValueSize;
-    uzMaxNumberOfHeaders = uzMaxNumberOfHeaders if uzMaxNumberOfHeaders  is not None else oSelf.uzDefaultMaxNumberOfHeaders;
-    uzMaxBodySize        = uzMaxBodySize        if uzMaxBodySize         is not None else oSelf.uzDefaultMaxBodySize;
-    uzMaxChunkSize       = uzMaxChunkSize       if uzMaxChunkSize        is not None else oSelf.uzDefaultMaxChunkSize;
-    uzMaxNumberOfChunks  = uzMaxNumberOfChunks  if uzMaxNumberOfChunks   is not None else oSelf.uzDefaultMaxNumberOfChunks;
+    u0MaxStatusLineSize  = fxGetFirstProvidedValue(u0zMaxStatusLineSize,   oSelf.u0DefaultMaxReasonPhraseSize);
+    u0MaxHeaderNameSize  = fxGetFirstProvidedValue(u0zMaxHeaderNameSize,   oSelf.u0DefaultMaxHeaderNameSize);
+    u0MaxHeaderValueSize = fxGetFirstProvidedValue(u0zMaxHeaderValueSize,  oSelf.u0DefaultMaxHeaderValueSize);
+    u0MaxNumberOfHeaders = fxGetFirstProvidedValue(u0zMaxNumberOfHeaders,  oSelf.u0DefaultMaxNumberOfHeaders);
+    u0MaxBodySize        = fxGetFirstProvidedValue(u0zMaxBodySize,         oSelf.u0DefaultMaxBodySize);
+    u0MaxChunkSize       = fxGetFirstProvidedValue(u0zMaxChunkSize,        oSelf.u0DefaultMaxChunkSize);
+    u0MaxNumberOfChunks  = fxGetFirstProvidedValue(u0zMaxNumberOfChunks,   oSelf.u0DefaultMaxNumberOfChunks);
+    u0MaximumNumberOfChunksBeforeDisconnecting = fx0GetProvidedValueOrNone(u0zMaximumNumberOfChunksBeforeDisconnecting);
     try:
       # Read and parse status line
-      dxConstructorStatusLineArguments = oSelf.__fdxReadAndParseStatusLine(cHTTPMessage, uzMaxStatusLineSize);
+      dxConstructorStatusLineArguments = oSelf.__fdxReadAndParseStatusLine(cHTTPMessage, u0MaxStatusLineSize);
       
       # Read and parse headers
-      oHeaders = oSelf.__foReadAndParseHeaders(cHTTPMessage, uzMaxHeaderNameSize, uzMaxHeaderValueSize, uzMaxNumberOfHeaders);
+      o0Headers = oSelf.__fo0ReadAndParseHeaders(cHTTPMessage, u0MaxHeaderNameSize, u0MaxHeaderValueSize, u0MaxNumberOfHeaders);
       # Find out what headers are present and at the same time do some sanity checking:
       # (this can throw a cHTTPInvalidMessageException if multiple Content-Length headers exist with different values)
-      ozContentLengthHeader = oHeaders.fozGetUniqueHeaderForName("Content-Length");
-      bTransferEncodingChunkedHeaderPresent = oHeaders.fbHasUniqueValueForName("Transfer-Encoding", "Chunked");
-      bConnectionCloseHeaderPresent = oHeaders.fbHasUniqueValueForName("Connection", "Close");
-      szBody = None;
-      azsBodyChunks = None;
-      ozAdditionalHeaders = None;
+      o0ContentLengthHeader = o0Headers and o0Headers.fo0GetUniqueHeaderForName("Content-Length");
+      bTransferEncodingChunkedHeaderPresent = o0Headers and o0Headers.fbHasUniqueValueForName("Transfer-Encoding", "Chunked");
+      bConnectionCloseHeaderPresent = o0Headers and o0Headers.fbHasUniqueValueForName("Connection", "Close");
+      s0Body = None;
+      a0sBodyChunks = None;
+      o0AdditionalHeaders = None;
       
       # Parse Content-Length header value if any
-      if ozContentLengthHeader is None:
-        uzContentLengthHeaderValue = None;
+      if o0ContentLengthHeader is None:
+        u0ContentLengthHeaderValue = None;
       else:
         try:
-          uzContentLengthHeaderValue = long(ozContentLengthHeader.sValue);
-          if uzContentLengthHeaderValue < 0:
-            raise ValueError("Content-Length value %s results in content length %s!?" % (ozContentLengthHeader.sValue, uzContentLengthHeaderValue));
+          u0ContentLengthHeaderValue = long(o0ContentLengthHeader.sValue);
+          if u0ContentLengthHeaderValue < 0:
+            raise ValueError("Content-Length value %s results in content length %s!?" % (o0ContentLengthHeader.sValue, u0ContentLengthHeaderValue));
         except ValueError:
           raise cHTTPInvalidMessageException(
             "The Content-Length header was invalid.",
-            {"oContentLengthHeader": ozContentLengthHeader},
+            {"o0ContentLengthHeader": o0ContentLengthHeader},
           );
-        if uzMaxBodySize is not None and uzContentLengthHeaderValue > uzMaxBodySize:
+        if u0MaxBodySize is not None and u0ContentLengthHeaderValue > u0MaxBodySize:
           raise cHTTPInvalidMessageException(
             "The Content-Length header was too large.",
-            {"oContentLengthHeader": ozContentLengthHeader, "uMaxBodySize": uzMaxBodySize},
+            {"o0ContentLengthHeader": o0ContentLengthHeader, "u0MaxBodySize": u0MaxBodySize},
           );
       
       # Read and decode/decompress body
       if bTransferEncodingChunkedHeaderPresent:
         # Having both Content-Length and Transfer-Encoding: chunked headers is really weird but AFAICT not illegal.
-        azsBodyChunks, bDisconnected = oSelf.__fxReadAndParseBodyChunks(cHTTPMessage, uzMaxBodySize, uzMaxChunkSize, uzMaxNumberOfChunks, uzMaximumNumberOfChunksBeforeDisconnecting, uzContentLengthHeaderValue);
+        a0sBodyChunks, bDisconnected = oSelf.__fxReadAndParseBodyChunks(
+          cHTTPMessage,
+          u0MaxBodySize,
+          u0MaxChunkSize,
+          u0MaxNumberOfChunks,
+          u0MaximumNumberOfChunksBeforeDisconnecting,
+          u0ContentLengthHeaderValue,
+        );
         if not bDisconnected:
           # More "headers" may follow.
-          ozAdditionalHeaders = oSelf.__foReadAndParseHeaders(cHTTPMessage, uzMaxHeaderNameSize, uzMaxHeaderValueSize, uzMaxNumberOfHeaders);
+          oAdditionalHeaders = oSelf.__foReadAndParseHeaders(cHTTPMessage, u0MaxHeaderNameSize, u0MaxHeaderValueSize, u0MaxNumberOfHeaders);
           for sIllegalName in ["Transfer-Encoding", "Content-Length"]:
-            ozIllegalHeader = ozAdditionalHeaders.fozGetUniqueHeaderForName(sIllegalName);
-            if ozIllegalHeader is not None:
+            o0IllegalHeader = oAdditionalHeaders.fo0GetUniqueHeaderForName(sIllegalName);
+            if o0IllegalHeader is not None:
               raise cHTTPInvalidMessageException(
                 "The message was not valid because it contained a %s header after the chunked body." % sIllegalName,
-                ozIllegalHeader.fsSerialize(),
+                o0IllegalHeader.fsSerialize(),
               );
-      elif uzContentLengthHeaderValue is not None:
-        fShowDebugOutput("Reading %d bytes response body..." % uzContentLengthHeaderValue);
-        szBody = oSelf.fsReadBytes(uzContentLengthHeaderValue);
+      elif u0ContentLengthHeaderValue is not None:
+        fShowDebugOutput("Reading %d bytes response body..." % u0ContentLengthHeaderValue);
+        s0Body = oSelf.fsReadBytes(u0ContentLengthHeaderValue);
       elif bConnectionCloseHeaderPresent:
         fShowDebugOutput("Reading response body until disconnected...");
-        szBody = oSelf.fsReadBytesUntilDisconnected(uzMaxNumberOfBytes = uzMaxBodySize);
+        s0Body = oSelf.fsReadBytesUntilDisconnected(u0MaxNumberOfBytes = u0MaxBodySize);
       else:
         fShowDebugOutput("No response body expected.");
       oMessage = cHTTPMessage(
-        ozHeaders = oHeaders,
-        szBody = szBody,
-        azsBodyChunks = azsBodyChunks,
-        ozAdditionalHeaders = ozAdditionalHeaders,
+        o0Headers = o0Headers,
+        s0Body = s0Body,
+        a0sBodyChunks = a0sBodyChunks,
+        o0AdditionalHeaders = o0AdditionalHeaders,
         **dxConstructorStatusLineArguments
       );
       fShowDebugOutput("%s received from %s." % (oMessage, oSelf));
@@ -269,80 +282,105 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
       raise;
   
   @ShowDebugOutput
-  def __fdxReadAndParseStatusLine(oSelf, cHTTPMessage, uzMaxStatusLineSize):
+  def __fdxReadAndParseStatusLine(oSelf,
+    cHTTPMessage,
+    u0MaxStatusLineSize,
+  ):
     fShowDebugOutput("Reading status line...");
-    szStatusLineCRLF = oSelf.fszReadUntilMarker("\r\n", uzMaxNumberOfBytes = uzMaxStatusLineSize);
-    if szStatusLineCRLF is None:
+    s0StatusLineCRLF = oSelf.fs0ReadUntilMarker("\r\n", u0MaxNumberOfBytes = u0MaxStatusLineSize);
+    if s0StatusLineCRLF is None:
       sStatusLine = oSelf.fsReadBufferedData();
       raise cHTTPInvalidMessageException(
         "The status line was too large.",
-        {"sStatusLine": sStatusLine, "uMaxStatusLineSize": uzMaxStatusLineSize},
+        {"sStatusLine": sStatusLine, "len(sStatusLine)<at least>": len(sStatusLine), "u0MaxStatusLineSize": u0MaxStatusLineSize},
       );
     fShowDebugOutput("Parsing status line...");
-    return cHTTPMessage.fdxParseStatusLine(szStatusLineCRLF[:-2]);
+    return cHTTPMessage.fdxParseStatusLine(s0StatusLineCRLF[:-2]);
   
   @ShowDebugOutput
-  def __foReadAndParseHeaders(oSelf, cHTTPMessage, uzMaxHeaderNameSize, uzMaxHeaderValueSize, uzMaxNumberOfHeaders):
+  def __fo0ReadAndParseHeaders(oSelf,
+    cHTTPMessage,
+    u0MaxHeaderNameSize,
+    u0MaxHeaderValueSize,
+    u0MaxNumberOfHeaders,
+  ):
     fShowDebugOutput("Reading headers...");
-    uzMaxHeaderLineSize = uzMaxHeaderNameSize + 2 + uzMaxHeaderValueSize if uzMaxHeaderNameSize is not None and uzMaxHeaderValueSize is not None else None;
+    if u0MaxHeaderNameSize is None or u0MaxHeaderValueSize is None:
+      u0MaxHeaderLineSize = None;
+    else:
+      u0MaxHeaderLineSize = u0MaxHeaderNameSize + 2 + u0MaxHeaderValueSize;
     asHeaderLines = [];
     while 1:
-      szHeaderLineCRLF = oSelf.fszReadUntilMarker("\r\n", uzMaxNumberOfBytes = uzMaxHeaderLineSize);
-      if szHeaderLineCRLF is None:
+      s0HeaderLineCRLF = oSelf.fs0ReadUntilMarker("\r\n", u0MaxNumberOfBytes = u0MaxHeaderLineSize);
+      if s0HeaderLineCRLF is None:
         sHeaderLine = oSelf.fsReadBufferedData();
         raise cHTTPInvalidMessageException(
           "A hreader line was too large.",
-          {"sHeaderLine": sHeaderLine, "uMaxHeaderLineSize": uzMaxHeaderLineSize},
+          {"sHeaderLine": sHeaderLine, "len(sHeaderLine)<at least>": len(sHeaderLine), "u0MaxHeaderLineSize": u0MaxHeaderLineSize},
         );
-      sHeaderLine = szHeaderLineCRLF[:-2];
+      sHeaderLine = s0HeaderLineCRLF[:-2];
       if len(sHeaderLine) == 0:
         break; # Empty line == end of headers
       asHeaderLines.append(sHeaderLine);
+    if len(asHeaderLines) == 0:
+      return None;
     return cHTTPMessage.foParseHeaderLines(asHeaderLines);
   
   @ShowDebugOutput
-  def __fxReadAndParseBodyChunks(oSelf, cHTTPMessage, uzMaxBodySize, uzMaxChunkSize, uzMaxNumberOfChunks, uzMaximumNumberOfChunksBeforeDisconnecting, uzContentLengthHeaderValue):
-    if uzContentLengthHeaderValue is not None:
-      fShowDebugOutput("Reading chunked response body WITH Content-Length = %d..." % uzContentLengthHeaderValue);
+  def __fxReadAndParseBodyChunks(oSelf,
+    cHTTPMessage,
+    u0MaxBodySize,
+    u0MaxChunkSize,
+    u0MaxNumberOfChunks,
+    u0MaximumNumberOfChunksBeforeDisconnecting,
+    u0ContentLengthHeaderValue,
+  ):
+    if u0ContentLengthHeaderValue is not None:
+      uContentLengthHeaderValue = u0ContentLengthHeaderValue;
+      fShowDebugOutput("Reading chunked response body WITH Content-Length = %d..." % uContentLengthHeaderValue);
     else:
       fShowDebugOutput("Reading chunked response body...");
     asBodyChunks = [];
     uTotalNumberOfBodyChunkBytes = 0;
     uTotalNumberOfBodyBytesInChunks = 0;
     while 1:
-      if uzMaximumNumberOfChunksBeforeDisconnecting is not None and len(asBodyChunks) == uzMaximumNumberOfChunksBeforeDisconnecting:
-        oSelf.fDisconnect();
-        return (asBodyChunks, True);
-      if uzMaxNumberOfChunks is not None and len(asBodyChunks) == uzMaxNumberOfChunks:
-        raise cHTTPInvalidMessageException(
-          "There are too many body chunks.",
-          {"uMaxNumberOfChunks": uzMaxNumberOfChunks},
-        );
+      if u0MaximumNumberOfChunksBeforeDisconnecting is not None:
+        uMaximumNumberOfChunksBeforeDisconnecting = u0MaximumNumberOfChunksBeforeDisconnecting;
+        if len(asBodyChunks) == uMaximumNumberOfChunksBeforeDisconnecting:
+          oSelf.fDisconnect();
+          return (asBodyChunks, True);
+      if u0MaxNumberOfChunks is not None:
+        uMaxNumberOfChunks = u0MaxNumberOfChunks;
+        if len(asBodyChunks) == uMaxNumberOfChunks:
+          raise cHTTPInvalidMessageException(
+            "There are too many body chunks.",
+            {"uMaxNumberOfChunks": uMaxNumberOfChunks},
+          );
       fShowDebugOutput("Reading response body chunk #%d header line..." % (len(asBodyChunks) + 1));
       # Read size in the chunk header
-      uzMaxChunkHeaderLineSize = oSelf.uzMaxChunkSizeCharacters + 2 if oSelf.uzMaxChunkSizeCharacters is not None else None;
-      if uzContentLengthHeaderValue is not None:
+      u0MaxChunkHeaderLineSize = oSelf.u0MaxChunkSizeCharacters + 2 if oSelf.u0MaxChunkSizeCharacters is not None else None;
+      if u0ContentLengthHeaderValue is not None:
         uMinimumNumberOfBodyChunksBytes = uTotalNumberOfBodyChunkBytes + 5; # minimum is "0\r\n\r\n"
-        if uMinimumNumberOfBodyChunksBytes > uzContentLengthHeaderValue:
+        if uMinimumNumberOfBodyChunksBytes > uContentLengthHeaderValue:
           raise cHTTPInvalidMessageException(
             "There are more bytes in the body chunks than the Content-Length header indicated.",
-            {"uContentLengthHeaderValue": uzContentLengthHeaderValue, "uMinimumNumberOfBodyChunksBytes": uMinimumNumberOfBodyChunksBytes},
+            {"uContentLengthHeaderValue": uContentLengthHeaderValue, "uMinimumNumberOfBodyChunksBytes": uMinimumNumberOfBodyChunksBytes},
           );
         if (
-          uzMaxNumberOfBytesInBodyRemaining is not None
-          and uzMaxChunkHeaderLineSize is not None
-          and uzMaxNumberOfBytesInBodyRemaining < uzMaxChunkHeaderLineSize
+          u0MaxNumberOfBytesInBodyRemaining is not None
+          and u0MaxChunkHeaderLineSize is not None
+          and u0MaxNumberOfBytesInBodyRemaining < u0MaxChunkHeaderLineSize
         ):
-          uzMaxChunkHeaderLineSize = uzMaxNumberOfBytesInBodyRemaining;
-      szChunkHeaderLineCRLF = oSelf.fszReadUntilMarker("\r\n", uzMaxNumberOfBytes = uzMaxChunkHeaderLineSize);
-      if szChunkHeaderLineCRLF is None:
+          u0MaxChunkHeaderLineSize = u0MaxNumberOfBytesInBodyRemaining;
+      s0ChunkHeaderLineCRLF = oSelf.fs0ReadUntilMarker("\r\n", u0MaxNumberOfBytes = u0MaxChunkHeaderLineSize);
+      if s0ChunkHeaderLineCRLF is None:
         sChunkHeaderLine = oSelf.fsReadBufferedData();
         raise cHTTPInvalidMessageException(
           "A body chunk header line was too large.",
-          {"sChunkHeaderLine": sChunkHeaderLine, "uMaxChunkHeaderLineSize": uzMaxChunkHeaderLineSize},
+          {"sChunkHeaderLine": sChunkHeaderLine, "uMaxChunkHeaderLineSize": u0MaxChunkHeaderLineSize},
         );
-      uTotalNumberOfBodyChunkBytes += len(szChunkHeaderLineCRLF);
-      sChunkHeaderLine = szChunkHeaderLineCRLF[:-2];
+      uTotalNumberOfBodyChunkBytes += len(s0ChunkHeaderLineCRLF);
+      sChunkHeaderLine = s0ChunkHeaderLineCRLF[:-2];
       if ";" in sChunkHeaderLine:
         raise cHTTPInvalidMessageException(
           "A body chunk header line contained an extension, which is not currently supported.",
@@ -357,25 +395,29 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
         );
       if uChunkSize == 0:
         break;
-      if uzContentLengthHeaderValue is not None:
+      if u0ContentLengthHeaderValue is not None:
         uMinimumNumberOfBodyChunksBytes = uTotalNumberOfBodyChunkBytes + uChunkSize + 2 + 7; # minimum after this chunk is "\r\n"+"0\r\n\r\n"
-        if uMinimumNumberOfBodyChunksBytes > uzContentLengthHeaderValue:
+        if uMinimumNumberOfBodyChunksBytes > uContentLengthHeaderValue:
           raise cHTTPInvalidMessageException(
             "There are more bytes in the body chunks than the Content-Length header indicated.",
-            {"uContentLengthHeaderValue": uzContentLengthHeaderValue, "uMinimumNumberOfBodyChunksBytes": uMinimumNumberOfBodyChunksBytes},
+            {"uContentLengthHeaderValue": uContentLengthHeaderValue, "uMinimumNumberOfBodyChunksBytes": uMinimumNumberOfBodyChunksBytes},
           );
-      if uzMaxChunkSize is not None and uChunkSize > uzMaxChunkSize:
-        raise cHTTPInvalidMessageException(
-          "A body chunk was too large.",
-          {"uMaxChunkSize": uzMaxChunkSize, "uChunkSize": uChunkSize},
-        );
+      if u0MaxChunkSize is not None:
+        uMaxChunkSize = u0MaxChunkSize;
+        if uChunkSize > uMaxChunkSize:
+          raise cHTTPInvalidMessageException(
+            "A body chunk was too large.",
+            {"uMaxChunkSize": uMaxChunkSize, "uChunkSize": uChunkSize},
+          );
       # Check chunk size and number of chunks
       uTotalNumberOfBodyBytesInChunks += uChunkSize;
-      if uzMaxBodySize is not None and uTotalNumberOfBodyBytesInChunks > uzMaxBodySize:
-        raise cHTTPInvalidMessageException(
-          "There are too many bytes in the body chunks.",
-          {"uMaxBodySize": uzMaxBodySize, "uMinimumNumberOfBodyBytesInBodyChunks": uTotalNumberOfBodyBytesInChunks},
-        );
+      if u0MaxBodySize is not None:
+        uMaxBodySize = u0MaxBodySize;
+        if uTotalNumberOfBodyBytesInChunks > uMaxBodySize:
+          raise cHTTPInvalidMessageException(
+            "There are too many bytes in the body chunks.",
+            {"uMaxBodySize": uMaxBodySize, "uMinimumNumberOfBodyBytesInBodyChunks": uTotalNumberOfBodyBytesInChunks},
+          );
       # Read the chunk
       fShowDebugOutput("Reading response body chunk #%d (%d bytes)..." % (len(asBodyChunks) + 1, uChunkSize));
       sChunkCRLF = oSelf.fsReadBytes(uChunkSize + 2);
@@ -386,23 +428,27 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
         );
       uTotalNumberOfBodyChunkBytes += len(sChunkCRLF);
       asBodyChunks.append(sChunkCRLF[:-2]);
-    if uzContentLengthHeaderValue is not None:
-      if uTotalNumberOfBodyChunkBytes < uzContentLengthHeaderValue:
+    if u0ContentLengthHeaderValue is not None:
+      if uTotalNumberOfBodyChunkBytes < uContentLengthHeaderValue:
         raise cHTTPInvalidMessageException(
           "There are less bytes in the body chunks than the Content-Length header indicated.",
-          {"uContentLengthHeaderValue": uzContentLengthHeaderValue, "uTotalNumberOfBodyChunkBytes": uTotalNumberOfBodyChunkBytes},
+          {"uContentLengthHeaderValue": uContentLengthHeaderValue, "uTotalNumberOfBodyChunkBytes": uTotalNumberOfBodyChunkBytes},
         );
     return (asBodyChunks, False);
 
   @ShowDebugOutput
-  def fozSendRequestAndReceiveResponse(oSelf,
+  def fo0SendRequestAndReceiveResponse(oSelf,
     # Send request arguments:
     oRequest, bStartTransaction = True,
     # Receive response arguments:
-    uzMaxStatusLineSize = None,
-    uzMaxHeaderNameSize = None, uzMaxHeaderValueSize = None, uzMaxNumberOfHeaders = None,
-    uzMaxBodySize = None, uzMaxChunkSize = None, uzMaxNumberOfChunks = None,
-    uzMaximumNumberOfChunksBeforeDisconnecting = None,
+    u0zMaxStatusLineSize = zNotProvided,
+    u0zMaxHeaderNameSize = zNotProvided,
+    u0zMaxHeaderValueSize = zNotProvided,
+    u0zMaxNumberOfHeaders = zNotProvided,
+    u0zMaxBodySize = zNotProvided,
+    u0zMaxChunkSize = zNotProvided,
+    u0zMaxNumberOfChunks = zNotProvided,
+    u0zMaximumNumberOfChunksBeforeDisconnecting = zNotProvided,
     bEndTransaction = True,
   ):
     if not oSelf.fbSendRequest(oRequest, bStartTransaction = bStartTransaction):
@@ -412,14 +458,14 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
         oSelf.fEndTransaction();
       return None;
     return oSelf.foReceiveResponse(
-      uzMaxStatusLineSize = uzMaxStatusLineSize,
-      uzMaxHeaderNameSize = uzMaxHeaderNameSize,
-      uzMaxHeaderValueSize = uzMaxHeaderValueSize,
-      uzMaxNumberOfHeaders = uzMaxNumberOfHeaders,
-      uzMaxBodySize = uzMaxBodySize,
-      uzMaxChunkSize = uzMaxChunkSize,
-      uzMaxNumberOfChunks = uzMaxNumberOfChunks,
-      uzMaximumNumberOfChunksBeforeDisconnecting = uzMaximumNumberOfChunksBeforeDisconnecting,
+      u0zMaxStatusLineSize = u0zMaxStatusLineSize,
+      u0zMaxHeaderNameSize = u0zMaxHeaderNameSize,
+      u0zMaxHeaderValueSize = u0zMaxHeaderValueSize,
+      u0zMaxNumberOfHeaders = u0zMaxNumberOfHeaders,
+      u0zMaxBodySize = u0zMaxBodySize,
+      u0zMaxChunkSize = u0zMaxChunkSize,
+      u0zMaxNumberOfChunks = u0zMaxNumberOfChunks,
+      u0zMaximumNumberOfChunksBeforeDisconnecting = u0zMaximumNumberOfChunksBeforeDisconnecting,
       bEndTransaction = bEndTransaction,
     );
   

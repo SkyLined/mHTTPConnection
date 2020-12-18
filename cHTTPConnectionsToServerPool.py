@@ -10,26 +10,27 @@ except: # Do nothing if not available.
   fEnableAllDebugOutput = lambda: None;
   cCallStack = fTerminateWithException = fTerminateWithConsoleOutput = None;
 
-from .mExceptions import *;
-from .cHTTPConnection import cHTTPConnection;
-
 from mMultiThreading import cLock, cWithCallbacks;
+
+from .cHTTPConnection import cHTTPConnection;
+from .mExceptions import *;
+from .mNotProvided import *;
 
 # To turn access to data store in multiple variables into a single transaction, we will create locks.
 # These locks should only ever be locked for a short time; if it is locked for too long, it is considered a "deadlock"
 # bug, where "too long" is defined by the following value:
 gnDeadlockTimeoutInSeconds = 1; # We're not doing anything time consuming, so this should suffice.
-guzDefaultMaxNumberOfConnectionsToServer = 10;
+gu0DefaultMaxNumberOfConnectionsToServer = 10;
 
 class cHTTPConnectionsToServerPool(cWithCallbacks):
   @ShowDebugOutput
   def __init__(oSelf,
     oServerBaseURL,
-    uzMaxNumberOfConnectionsToServer = None,
-    ozSSLContext = None
+    u0zMaxNumberOfConnectionsToServer = zNotProvided,
+    o0SSLContext = None
   ):
     oSelf.__oServerBaseURL = oServerBaseURL;
-    oSelf.__uzMaxNumberOfConnectionsToServer = uzMaxNumberOfConnectionsToServer if uzMaxNumberOfConnectionsToServer is not None else guzDefaultMaxNumberOfConnectionsToServer;
+    oSelf.__u0MaxNumberOfConnectionsToServer = fxGetFirstProvidedValue(u0zMaxNumberOfConnectionsToServer, gu0DefaultMaxNumberOfConnectionsToServer);
     oSelf.__ozSSLContext = ozSSLContext;
     
     oSelf.__oConnectionsPropertyLock = cLock(
