@@ -116,7 +116,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
   def foReceiveRequest(oSelf,
     uzMaxStatusLineSize = zNotProvided,
     uzMaxHeaderNameSize = zNotProvided, uzMaxHeaderValueSize = zNotProvided, uzMaxNumberOfHeaders = zNotProvided,
-    uzMaxBodySize = None,zNotProvideduzMaxChunkSize = zNotProvided, uzMaxNumberOfChunks = zNotProvided, # throw exception if more than this many chunks are received
+    uzMaxBodySize = zNotProvided, uzMaxChunkSize = zNotProvided, uzMaxNumberOfChunks = zNotProvided, # throw exception if more than this many chunks are received
     bStartTransaction = True, n0TransactionTimeoutInSeconds = None,
   ):
     # Attempt to receive a request from the connection.
