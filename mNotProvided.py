@@ -44,11 +44,11 @@ if not hasattr(__main__, "__zNotProvided"):
   __main__.__zNotProvided = czNotProvided();
 zNotProvided = __main__.__zNotProvided;
 
-def fbIsProvided(xValue):
+def fbIsProvided(xzValue):
   # We don't want the user to directly compare a value that may be `zNotProvided`
   # to any other value, so we won't do it ourselves either. But every value in
   # Python has a unique id, so we can compare ids.
-  return id(xValue) == id(zNotProvided);
+  return id(xzValue) != id(zNotProvided);
 
 def fxGetFirstProvidedValue(*txzValues):
   for xzValue in txzValues:

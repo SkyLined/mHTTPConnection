@@ -31,11 +31,11 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
   ):
     oSelf.__oServerBaseURL = oServerBaseURL;
     oSelf.__u0MaxNumberOfConnectionsToServer = fxGetFirstProvidedValue(u0zMaxNumberOfConnectionsToServer, gu0DefaultMaxNumberOfConnectionsToServer);
-    oSelf.__ozSSLContext = ozSSLContext;
+    oSelf.__o0SSLContext = o0SSLContext;
     
     oSelf.__oConnectionsPropertyLock = cLock(
       "%s.__oConnectionsPropertyLock" % oSelf.__class__.__name__,
-      nzDeadlockTimeoutInSeconds = gnDeadlockTimeoutInSeconds
+      n0DeadlockTimeoutInSeconds = gnDeadlockTimeoutInSeconds
     );
     oSelf.__aoConnections = [];
     oSelf.__uPendingConnects = 0;
@@ -43,7 +43,7 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
     oSelf.__bStopping = False;
     oSelf.__oTerminatedPropertyLock = cLock(
       "%s.__oTerminatedEventFiredLock" % oSelf.__class__.__name__,
-      nzDeadlockTimeoutInSeconds = gnDeadlockTimeoutInSeconds
+      n0DeadlockTimeoutInSeconds = gnDeadlockTimeoutInSeconds
     );
     oSelf.__oTerminatedLock = cLock(
       "%s.__oTerminatedLock" % oSelf.__class__.__name__,
@@ -126,14 +126,14 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
     return oSelf.__oTerminatedLock.fbWait(bTimeoutInSeconds);
   
   @ShowDebugOutput
-  def fozSendRequestAndReceiveResponse(oSelf,
+  def fo0SendRequestAndReceiveResponse(oSelf,
     oRequest,
-    nzConnectTimeoutInSeconds = None, nzSecureTimeoutInSeconds = None, nzTransactionTimeoutInSeconds = None,
+    n0zConnectTimeoutInSeconds = zNotProvided, n0zSecureTimeoutInSeconds = zNotProvided, n0zTransactionTimeoutInSeconds = zNotProvided,
     bEndTransaction = True,
-    uzMaxStatusLineSize = None,
-    uzMaxHeaderNameSize = None, uzMaxHeaderValueSize = None, uzMaxNumberOfHeaders = None,
-    uzMaxBodySize = None, uzMaxChunkSize = None, uzMaxNumberOfChunks = None,
-    uzMaximumNumberOfChunksBeforeDisconnecting = None, # disconnect and return response once this many chunks are received.
+    u0zMaxStatusLineSize = zNotProvided,
+    u0zMaxHeaderNameSize = zNotProvided, u0zMaxHeaderValueSize = zNotProvided, u0zMaxNumberOfHeaders = zNotProvided,
+    u0zMaxBodySize = zNotProvided, u0zMaxChunkSize = zNotProvided, u0zMaxNumberOfChunks = zNotProvided,
+    u0MaxNumberOfChunksBeforeDisconnecting = zNotProvided, # disconnect and return response once this many chunks are received.
   ):
     # Send a request to the server and receive a response.
     # An existing connection is reused if one is available. A new connection
@@ -144,28 +144,28 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
       return None;
     # Returns cResponse instance if response was received.
     fShowDebugOutput("Getting connection...");
-    oConnection = oSelf.__foStartTransactionOnExistingConnection(nzTransactionTimeoutInSeconds);
+    oConnection = oSelf.__foStartTransactionOnExistingConnection(n0zTransactionTimeoutInSeconds);
     if oConnection is None:
       if oSelf.__bStopping:
         return None;
       oConnection = oSelf.__foCreateNewConnectionAndStartTransaction(
-        nzConnectTimeoutInSeconds, nzSecureTimeoutInSeconds, nzTransactionTimeoutInSeconds
+        n0zConnectTimeoutInSeconds, n0zSecureTimeoutInSeconds, n0zTransactionTimeoutInSeconds
       );
       if oSelf.__bStopping:
         return None;
       assert oConnection, \
           "A new connection was not established even though we are not stopping!?";
-    oResponse = oConnection.fozSendRequestAndReceiveResponse(
+    oResponse = oConnection.fo0SendRequestAndReceiveResponse(
       oRequest,
       bStartTransaction = False,
-      uzMaxStatusLineSize = uzMaxStatusLineSize,
-      uzMaxHeaderNameSize = uzMaxHeaderNameSize,
-      uzMaxHeaderValueSize = uzMaxHeaderValueSize,
-      uzMaxNumberOfHeaders = uzMaxNumberOfHeaders,
-      uzMaxBodySize = uzMaxBodySize,
-      uzMaxChunkSize = uzMaxChunkSize,
-      uzMaxNumberOfChunks = uzMaxNumberOfChunks,
-      uzMaximumNumberOfChunksBeforeDisconnecting = uzMaximumNumberOfChunksBeforeDisconnecting, # disconnect and return response once this many chunks are received.
+      u0zMaxStatusLineSize = u0zMaxStatusLineSize,
+      u0zMaxHeaderNameSize = u0zMaxHeaderNameSize,
+      u0zMaxHeaderValueSize = u0zMaxHeaderValueSize,
+      u0zMaxNumberOfHeaders = u0zMaxNumberOfHeaders,
+      u0zMaxBodySize = u0zMaxBodySize,
+      u0zMaxChunkSize = u0zMaxChunkSize,
+      u0zMaxNumberOfChunks = u0zMaxNumberOfChunks,
+      u0MaxNumberOfChunksBeforeDisconnecting = u0MaxNumberOfChunksBeforeDisconnecting, # disconnect and return response once this many chunks are received.
       bEndTransaction = bEndTransaction,
     );
     if oSelf.__bStopping:
@@ -177,13 +177,13 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
     return oResponse;
   
   @ShowDebugOutput
-  def __foStartTransactionOnExistingConnection(oSelf, nzTransactionTimeoutInSeconds):
+  def __foStartTransactionOnExistingConnection(oSelf, n0zTransactionTimeoutInSeconds):
     oSelf.__oConnectionsPropertyLock.fAcquire();
     try:
       for oConnection in oSelf.__aoConnections:
         if oSelf.__bStopping:
           return None;
-        if oConnection.fbStartTransaction(nzTransactionTimeoutInSeconds):
+        if oConnection.fbStartTransaction(n0zTransactionTimeoutInSeconds):
           return oConnection;
       return None;
     finally:
@@ -191,16 +191,19 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
   
   @ShowDebugOutput
   def __foCreateNewConnectionAndStartTransaction(oSelf,
-    nzConnectTimeoutInSeconds, nzSecureTimeoutInSeconds, nzTransactionTimeoutInSeconds
+    n0zConnectTimeoutInSeconds, n0zSecureTimeoutInSeconds, n0zTransactionTimeoutInSeconds
   ):
     # Make sure we would not create too many connections and add a pending connection:
     # Can throw a max-connections-reached exception
     oSelf.__oConnectionsPropertyLock.fAcquire();
     try:
-      if len(oSelf.__aoConnections) + oSelf.__uPendingConnects == oSelf.__uzMaxNumberOfConnectionsToServer:
+      if (
+        oSelf.__u0MaxNumberOfConnectionsToServer is not None
+        and len(oSelf.__aoConnections) + oSelf.__uPendingConnects == oSelf.__u0MaxNumberOfConnectionsToServer
+      ):
         raise cMaxConnectionsReachedException(
           "Cannot create more connections to the server",
-          {"uMaxNumberOfConnectionsToServer": oSelf.__uzMaxNumberOfConnectionsToServer}
+          {"uMaxNumberOfConnectionsToServer": oSelf.__u0MaxNumberOfConnectionsToServer}
         );
       oSelf.__uPendingConnects += 1;
     finally:
@@ -211,16 +214,16 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
       oConnection = cHTTPConnection.foConnectTo(
         sHostname = oSelf.__oServerBaseURL.sHostname,
         uPort = oSelf.__oServerBaseURL.uPort,
-        nzConnectTimeoutInSeconds = nzConnectTimeoutInSeconds,
-        ozSSLContext = oSelf.__ozSSLContext,
-        nzSecureTimeoutInSeconds = nzSecureTimeoutInSeconds,
+        n0zConnectTimeoutInSeconds = n0zConnectTimeoutInSeconds,
+        o0SSLContext = oSelf.__o0SSLContext,
+        n0zSecureTimeoutInSeconds = n0zSecureTimeoutInSeconds,
       );
     except Exception as oException:
       oSelf.fFireCallbacks("connect failed", oSelf.__oServerBaseURL.sHostname, oSelf.__oServerBaseURL.uPort, oException);
       raise;
     else:
       # Start a transaction to prevent other threads from using it:
-      assert oConnection.fbStartTransaction(nzTransactionTimeoutInSeconds), \
+      assert oConnection.fbStartTransaction(n0zTransactionTimeoutInSeconds), \
            "Cannot start a transaction on a new connection (%s)" % repr(oConnection);
     finally:
       # remove a pending connection and add it if it was successfuly created.
@@ -262,7 +265,7 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
     return [s for s in [
       oSelf.__oServerBaseURL.sBase,
       "%d connections" % uConnectionsCount if not bTerminated else None,
-      "secure" if oSelf.__ozSSLContext else None,
+      "secure" if oSelf.__o0SSLContext else None,
       "terminated" if bTerminated else
           "stopping" if oSelf.__bStopping else None,
     ] if s];

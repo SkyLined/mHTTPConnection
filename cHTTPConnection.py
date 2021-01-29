@@ -114,9 +114,9 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
   # Read HTTP Messages
   @ShowDebugOutput
   def foReceiveRequest(oSelf,
-    uzMaxStatusLineSize = zNotProvided,
-    uzMaxHeaderNameSize = zNotProvided, uzMaxHeaderValueSize = zNotProvided, uzMaxNumberOfHeaders = zNotProvided,
-    uzMaxBodySize = zNotProvided, uzMaxChunkSize = zNotProvided, uzMaxNumberOfChunks = zNotProvided, # throw exception if more than this many chunks are received
+    u0zMaxStatusLineSize = zNotProvided,
+    u0zMaxHeaderNameSize = zNotProvided, u0zMaxHeaderValueSize = zNotProvided, u0zMaxNumberOfHeaders = zNotProvided,
+    u0zMaxBodySize = zNotProvided, u0zMaxChunkSize = zNotProvided, u0zMaxNumberOfChunks = zNotProvided, # throw exception if more than this many chunks are received
     bStartTransaction = True, n0TransactionTimeoutInSeconds = None,
   ):
     # Attempt to receive a request from the connection.
@@ -132,10 +132,10 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
       oRequest = oSelf.__foReceiveMessage(
         # it's ok if a connection is dropped by a client before a request is received, so the above can return None.
         cHTTPRequest, 
-        uzMaxStatusLineSize = uzMaxStatusLineSize,
-        uzMaxHeaderNameSize = uzMaxHeaderNameSize, uzMaxHeaderValueSize = uzMaxHeaderValueSize, uzMaxNumberOfHeaders = uzMaxNumberOfHeaders,
-        uzMaxBodySize = uzMaxBodySize, uzMaxChunkSize = uzMaxChunkSize, uzMaxNumberOfChunks = uzMaxNumberOfChunks,
-        u0MaximumNumberOfChunksBeforeDisconnecting = None,
+        u0zMaxStatusLineSize = u0zMaxStatusLineSize,
+        u0zMaxHeaderNameSize = u0zMaxHeaderNameSize, u0zMaxHeaderValueSize = u0zMaxHeaderValueSize, u0zMaxNumberOfHeaders = u0zMaxNumberOfHeaders,
+        u0zMaxBodySize = u0zMaxBodySize, u0zMaxChunkSize = u0zMaxChunkSize, u0zMaxNumberOfChunks = u0zMaxNumberOfChunks,
+        u0MaxNumberOfChunksBeforeDisconnecting = None,
       );
       oSelf.fFireCallbacks("request received", oRequest);
       return oRequest;
@@ -145,10 +145,10 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
   
   @ShowDebugOutput
   def foReceiveResponse(oSelf,
-    uzMaxStatusLineSize = None,
-    uzMaxHeaderNameSize = None, uzMaxHeaderValueSize = None, uzMaxNumberOfHeaders = None,
-    uzMaxBodySize = None, uzMaxChunkSize = None, uzMaxNumberOfChunks = None, # throw exception if more than this many chunks are received
-    uzMaximumNumberOfChunksBeforeDisconnecting = None, # disconnect and return response once this many chunks are received.
+    u0zMaxStatusLineSize = None,
+    u0zMaxHeaderNameSize = None, u0zMaxHeaderValueSize = None, u0zMaxNumberOfHeaders = None,
+    u0zMaxBodySize = None, u0zMaxChunkSize = None, u0zMaxNumberOfChunks = None, # throw exception if more than this many chunks are received
+    u0MaxNumberOfChunksBeforeDisconnecting = None, # disconnect and return response once this many chunks are received.
     bEndTransaction = True,
   ):
     # Attempt to receive a response from the connection.
@@ -161,10 +161,10 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
       oResponse = oSelf.__foReceiveMessage(
         # it's not ok if a connection is dropped by a server before a response is received, so the above cannot return None.
         cHTTPResponse, 
-        uzMaxStatusLineSize = uzMaxStatusLineSize,
-        uzMaxHeaderNameSize = uzMaxHeaderNameSize, uzMaxHeaderValueSize = uzMaxHeaderValueSize, uzMaxNumberOfHeaders = uzMaxNumberOfHeaders,
-        uzMaxBodySize = uzMaxBodySize, uzMaxChunkSize = uzMaxChunkSize, uzMaxNumberOfChunks = uzMaxNumberOfChunks,
-        uzMaximumNumberOfChunksBeforeDisconnecting = uzMaximumNumberOfChunksBeforeDisconnecting,
+        u0zMaxStatusLineSize = u0zMaxStatusLineSize,
+        u0zMaxHeaderNameSize = u0zMaxHeaderNameSize, u0zMaxHeaderValueSize = u0zMaxHeaderValueSize, u0zMaxNumberOfHeaders = u0zMaxNumberOfHeaders,
+        u0zMaxBodySize = u0zMaxBodySize, u0zMaxChunkSize = u0zMaxChunkSize, u0zMaxNumberOfChunks = u0zMaxNumberOfChunks,
+        u0MaxNumberOfChunksBeforeDisconnecting = u0MaxNumberOfChunksBeforeDisconnecting,
       );
       oSelf.fFireCallbacks("response received", oResponse);
       return oResponse;
@@ -181,7 +181,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
     u0zMaxBodySize,
     u0zMaxChunkSize,
     u0zMaxNumberOfChunks,
-    u0zMaximumNumberOfChunksBeforeDisconnecting,
+    u0MaxNumberOfChunksBeforeDisconnecting,
   ):
     # Read and parse a HTTP message.
     # Returns a cHTTPMessage instance.
@@ -193,7 +193,6 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
     u0MaxBodySize        = fxGetFirstProvidedValue(u0zMaxBodySize,         oSelf.u0DefaultMaxBodySize);
     u0MaxChunkSize       = fxGetFirstProvidedValue(u0zMaxChunkSize,        oSelf.u0DefaultMaxChunkSize);
     u0MaxNumberOfChunks  = fxGetFirstProvidedValue(u0zMaxNumberOfChunks,   oSelf.u0DefaultMaxNumberOfChunks);
-    u0MaximumNumberOfChunksBeforeDisconnecting = fx0GetProvidedValueOrNone(u0zMaximumNumberOfChunksBeforeDisconnecting);
     try:
       # Read and parse status line
       dxConstructorStatusLineArguments = oSelf.__fdxReadAndParseStatusLine(cHTTPMessage, u0MaxStatusLineSize);
@@ -236,7 +235,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
           u0MaxBodySize,
           u0MaxChunkSize,
           u0MaxNumberOfChunks,
-          u0MaximumNumberOfChunksBeforeDisconnecting,
+          u0MaxNumberOfChunksBeforeDisconnecting,
           u0ContentLengthHeaderValue,
         );
         if not bDisconnected:
@@ -258,7 +257,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
       else:
         fShowDebugOutput("No response body expected.");
       oMessage = cHTTPMessage(
-        o0Headers = o0Headers,
+        o0zHeaders = o0Headers,
         s0Body = s0Body,
         a0sBodyChunks = a0sBodyChunks,
         o0AdditionalHeaders = o0AdditionalHeaders,
@@ -332,7 +331,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
     u0MaxBodySize,
     u0MaxChunkSize,
     u0MaxNumberOfChunks,
-    u0MaximumNumberOfChunksBeforeDisconnecting,
+    u0MaxNumberOfChunksBeforeDisconnecting,
     u0ContentLengthHeaderValue,
   ):
     if u0ContentLengthHeaderValue is not None:
@@ -344,9 +343,9 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
     uTotalNumberOfBodyChunkBytes = 0;
     uTotalNumberOfBodyBytesInChunks = 0;
     while 1:
-      if u0MaximumNumberOfChunksBeforeDisconnecting is not None:
-        uMaximumNumberOfChunksBeforeDisconnecting = u0MaximumNumberOfChunksBeforeDisconnecting;
-        if len(asBodyChunks) == uMaximumNumberOfChunksBeforeDisconnecting:
+      if u0MaxNumberOfChunksBeforeDisconnecting is not None:
+        uMaxNumberOfChunksBeforeDisconnecting = u0MaxNumberOfChunksBeforeDisconnecting;
+        if len(asBodyChunks) == uMaxNumberOfChunksBeforeDisconnecting:
           oSelf.fDisconnect();
           return (asBodyChunks, True);
       if u0MaxNumberOfChunks is not None:
@@ -448,7 +447,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
     u0zMaxBodySize = zNotProvided,
     u0zMaxChunkSize = zNotProvided,
     u0zMaxNumberOfChunks = zNotProvided,
-    u0zMaximumNumberOfChunksBeforeDisconnecting = zNotProvided,
+    u0MaxNumberOfChunksBeforeDisconnecting = None,
     bEndTransaction = True,
   ):
     if not oSelf.fbSendRequest(oRequest, bStartTransaction = bStartTransaction):
@@ -465,7 +464,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
       u0zMaxBodySize = u0zMaxBodySize,
       u0zMaxChunkSize = u0zMaxChunkSize,
       u0zMaxNumberOfChunks = u0zMaxNumberOfChunks,
-      u0zMaximumNumberOfChunksBeforeDisconnecting = u0zMaximumNumberOfChunksBeforeDisconnecting,
+      u0MaxNumberOfChunksBeforeDisconnecting = u0MaxNumberOfChunksBeforeDisconnecting,
       bEndTransaction = bEndTransaction,
     );
   
