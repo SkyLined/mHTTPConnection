@@ -10,11 +10,11 @@ except: # Do nothing if not available.
   fEnableAllDebugOutput = lambda: None;
   cCallStack = fTerminateWithException = fTerminateWithConsoleOutput = None;
 
-from mTCPIPConnections import cTransactionalBufferedTCPIPConnection;
 from mHTTPProtocol import cHTTPRequest, cHTTPResponse, iHTTPMessage;
+from mNotProvided import *;
+from mTCPIPConnections import cTransactionalBufferedTCPIPConnection;
 
 from .mExceptions import *;
-from .mNotProvided import *;
 
 gbDebugOutputFullHTTPMessages = False;
 
