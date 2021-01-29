@@ -13,3 +13,6 @@
 [submodule "modules\\mHTTPProtocol"]
 	path = modules\\mHTTPProtocol
 	url = https://github.com/SkyLined/mHTTPProtocol
+[submodule "modules/mNotProvided"]
+	path = modules/mNotProvided
+	url = https://github.com/SkyLined/mNotProvided/
