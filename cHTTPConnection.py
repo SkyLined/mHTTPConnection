@@ -244,14 +244,15 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
         );
         if not bDisconnected:
           # More "headers" may follow.
-          oAdditionalHeaders = oSelf.__foReadAndParseHeaders(cHTTPMessage, u0MaxHeaderNameSize, u0MaxHeaderValueSize, u0MaxNumberOfHeaders);
-          for sIllegalName in ["Transfer-Encoding", "Content-Length"]:
-            o0IllegalHeader = oAdditionalHeaders.fo0GetUniqueHeaderForName(sIllegalName);
-            if o0IllegalHeader is not None:
-              raise cHTTPInvalidMessageException(
-                "The message was not valid because it contained a %s header after the chunked body." % sIllegalName,
-                o0IllegalHeader.fsSerialize(),
-              );
+          o0AdditionalHeaders = oSelf.__fo0ReadAndParseHeaders(cHTTPMessage, u0MaxHeaderNameSize, u0MaxHeaderValueSize, u0MaxNumberOfHeaders);
+          if o0AdditionalHeaders:
+            for sIllegalName in ["Transfer-Encoding", "Content-Length"]:
+              o0IllegalHeader = o0AdditionalHeaders.fo0GetUniqueHeaderForName(sIllegalName);
+              if o0IllegalHeader is not None:
+                raise cHTTPInvalidMessageException(
+                  "The message was not valid because it contained a %s header after the chunked body." % sIllegalName,
+                  o0IllegalHeader.fsSerialize(),
+                );
       elif u0ContentLengthHeaderValue is not None:
         fShowDebugOutput("Reading %d bytes response body..." % u0ContentLengthHeaderValue);
         s0Body = oSelf.fsReadBytes(u0ContentLengthHeaderValue);
