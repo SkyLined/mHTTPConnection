@@ -10,7 +10,7 @@ except: # Do nothing if not available.
   fEnableAllDebugOutput = lambda: None;
   cCallStack = fTerminateWithException = fTerminateWithConsoleOutput = None;
 
-from mHTTPProtocol import cHTTPRequest, cHTTPResponse, iHTTPMessage;
+from mHTTPProtocol import cHTTPRequest, cHTTPResponse, cURL;
 from mNotProvided import *;
 from mTCPIPConnections import cTransactionalBufferedTCPIPConnection;
 
@@ -50,6 +50,10 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
       "request sent", "request received", 
       "response sent", "response received",
     );
+  
+  def foGetURLForRemoteServer(oSelf):
+    # Calling this only makes sense from a client on a connection to a server.
+    return cURL("https" if oSelf.bSecure else "http", oSelf.sRemoteHostname, oSelf.uRemotePort);
   
   # Send HTTP Messages
   @ShowDebugOutput
