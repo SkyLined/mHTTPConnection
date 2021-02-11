@@ -1,4 +1,6 @@
 {
+  "asProductTypes": ["Python module"],
+  "sPythonModuleName": "mHTTPConnections",
   "asDependentOnProductNames": [
     "mHTTPProtocol", 
     "mMultiThreading", 
