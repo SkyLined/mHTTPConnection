@@ -1,20 +1,24 @@
 {
-  "asProductTypes": ["Python module"],
-  "sPythonModuleName": "mHTTPConnections",
   "asDependentOnProductNames": [
     "mHTTPProtocol", 
     "mMultiThreading", 
-    "mNotProvided",
+    "mNotProvided", 
     "mTCPIPConnections", 
     "mWindowsSDK"
   ], 
+  "asJavaScriptModuleNames": [], 
   "asOptionalProductNames": [
-    "cFileSystemItem",
+    "cFileSystemItem", 
     "mDebugOutput", 
     "mSSL", 
     "oConsole"
   ], 
-  "oProductVersion": "2020-08-12 11:50", 
+  "asPHPModuleNames": [], 
+  "asProductTypes": [
+    "Python module"
+  ], 
+  "asPythonApplicationNames": [], 
+  "oProductVersion": "2021-03-01 09:15", 
   "oRepository": {
     "sBranch": "master", 
     "sRepositoryName": "mHTTPConnections", 
@@ -25,5 +29,6 @@
   "sLicenseServerURL": null, 
   "sProductAuthor": "SkyLined", 
   "sProductName": "mHTTPConnections", 
-  "sProductURL": "https://github.com/SkyLined/mHTTPConnections"
+  "sProductURL": "https://github.com/SkyLined/mHTTPConnections", 
+  "sPythonModuleName": "mHTTPConnections"
 }
