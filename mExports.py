@@ -5,7 +5,8 @@ from . import mExceptions;
 # Pass down
 from mHTTPProtocol import cHTTPHeader, cHTTPHeaders, \
     cHTTPRequest, cHTTPResponse, \
-    cURL;
+    cURL, \
+    fs0GetExtensionForMediaType, fsb0GetMediaTypeForExtension;
 
 __all__ = [
   "cHTTPConnection",
@@ -18,4 +19,6 @@ __all__ = [
   "cHTTPRequest",
   "cHTTPResponse",
   "cURL",
+  "fs0GetExtensionForMediaType",
+  "fsb0GetMediaTypeForExtension",
 ];

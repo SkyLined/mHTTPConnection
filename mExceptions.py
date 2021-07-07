@@ -1,6 +1,6 @@
-# Passdown from mHTTPProtocol and mTCPIPConnections, which in turn passes down from mSSL if available
+# Passdown from mHTTPProtocol and mTCPIPConnection, which in turn passes down from mSSL if available
 from mHTTPProtocol.mExceptions import *;
-from mTCPIPConnections.mExceptions import *;
+from mTCPIPConnection.mExceptions import *;
 
 class cMaxConnectionsReachedException(cHTTPException):
   pass; # The client would need to create more connections to the server than allowed.

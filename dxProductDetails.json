@@ -1,32 +1,31 @@
 {
-  "asDependentOnProductNames": [
-    "mHTTPProtocol", 
-    "mMultiThreading", 
-    "mNotProvided", 
-    "mTCPIPConnections", 
+  "a0sDebugAdditionalProductNames": [
+    "mFileSystemItem",
+    "mDebugOutput",
+    "mSSL",
+    "mConsole"
+  ],
+  "a0sDependentOnProductNames": [
+    "mHTTPProtocol",
+    "mMultiThreading",
+    "mNotProvided",
+    "mTCPIPConnection",
     "mWindowsSDK"
-  ], 
-  "asJavaScriptModuleNames": [], 
-  "asOptionalProductNames": [
-    "cFileSystemItem", 
-    "mDebugOutput", 
-    "mSSL", 
-    "oConsole"
-  ], 
-  "asPHPModuleNames": [], 
+  ],
   "asProductTypes": [
     "Python module"
-  ], 
-  "asPythonApplicationNames": [], 
-  "oProductVersion": "2021-04-15 11:39", 
-  "oRepository": {
-    "sBranch": "master", 
-    "sRepositoryName": "mHTTPConnections", 
-    "sType": "GitHub", 
-    "sUserName": "SkyLined"
-  }, 
-  "sProductAuthor": "SkyLined", 
-  "sProductName": "mHTTPConnections", 
-  "sProductURL": "https://github.com/SkyLined/mHTTPConnections", 
-  "sPythonModuleName": "mHTTPConnections"
+  ],
+  "o0Repository": {
+    "sStructureVersion": "2021-07-02 11:16",
+    "sType": "GitHub",
+    "sbBranch": "master",
+    "sbRepositoryName": "mHTTPConnection",
+    "sbUserName": "SkyLined"
+  },
+  "oProductVersion": "2021-07-07 12:50",
+  "s0PythonModuleName": "mHTTPConnection",
+  "sProductAuthor": "SkyLined",
+  "sProductName": "mHTTPConnection",
+  "sStructureVersion": "2021-07-02 11:16",
+  "sb0ProductURL": "https://github.com/SkyLined/mHTTPConnection"
 }
