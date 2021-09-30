@@ -34,4 +34,3 @@ typing
 urllib
 warnings
 zipfile
-zlib
