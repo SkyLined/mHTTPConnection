@@ -9,6 +9,5 @@ class cHTTPConnectionAcceptor(cTransactionalBufferedTCPIPConnectionAcceptor):
   def foCreateNewConnectionForPythonSocket(oSelf, oPythonSocket):
     return cHTTPConnection(oPythonSocket, bCreatedLocally = False);
 
-print repr(cHTTPConnectionAcceptor.sbDefaultHostname);
 for cException in acExceptions:
   setattr(cHTTPConnectionAcceptor, cException.__name__, cException);
