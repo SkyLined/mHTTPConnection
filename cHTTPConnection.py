@@ -472,3 +472,5 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
       bEndTransaction = bEndTransaction,
     );
   
+for cException in acExceptions:
+  setattr(cHTTPConnection, cException.__name__, cException);

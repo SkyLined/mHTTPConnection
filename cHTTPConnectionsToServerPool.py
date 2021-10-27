@@ -355,3 +355,6 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
   
   def __str__(oSelf):
     return "%s#%X{%s}" % (oSelf.__class__.__name__, id(oSelf), ", ".join(oSelf.fasGetDetails()));
+
+for cException in acExceptions:
+  setattr(cHTTPConnectionsToServerPool, cException.__name__, cException);
