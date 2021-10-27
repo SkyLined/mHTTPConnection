@@ -52,6 +52,7 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
       "hostname resolved",
       "connect failed",
       "new connection",
+      "bytes written", "bytes read",
       "request sent", "response received",
       "request sent and response received",
       "connection terminated",
@@ -302,6 +303,8 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
     finally:
       oSelf.__oConnectionsPropertyLock.fRelease();
     # Add some event handlers
+    oConnection.fAddCallback("bytes written", oSelf.__fHandleBytesWrittenCallbackFromConnection);
+    oConnection.fAddCallback("bytes read", oSelf.__fHandleBytesReadCallbackFromConnection);
     oConnection.fAddCallback("request sent", oSelf.__fHandleRequestSentCallbackFromConnection);
     oConnection.fAddCallback("response received", oSelf.__fHandleResponseReceivedCallbackFromConnection);
     oConnection.fAddCallback("terminated", oSelf.__fHandleTerminatedCallbackFromConnection);
@@ -310,6 +313,12 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
   
   def __fHandleResolveHostnameCallback(oSelf, sbHostname, iFamily, sCanonicalName, sIPAddress):
     oSelf.fFireCallbacks("hostname resolved", sbHostname = sbHostname, iFamily = iFamily, sCanonicalName = sCanonicalName, sIPAddress = sIPAddress);
+  
+  def __fHandleBytesWrittenCallbackFromConnection(oSelf, oConnection, sbBytesWritten):
+    oSelf.fFireCallbacks("bytes written", oConnection, sbBytesWritten);
+  
+  def __fHandleBytesReadCallbackFromConnection(oSelf, oConnection, sbBytesRead):
+    oSelf.fFireCallbacks("bytes read", oConnection, sbBytesRead);
   
   def __fHandleRequestSentCallbackFromConnection(oSelf, oConnection, oRequest):
     oSelf.fFireCallbacks("request sent", oConnection, oRequest);
