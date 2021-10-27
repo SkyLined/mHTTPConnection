@@ -10,7 +10,7 @@ class cMaxConnectionsReachedException(cHTTPException):
 class cHTTPOutOfBandDataException(cHTTPException):
   pass; # The remote send data when it was not expected to do so (i.e. the server send data before a request was made).
 
-acException = (
+acExceptions = (
   acHTTPProtocolExceptions +
   acTCPIPProtocolExceptions + 
   [
