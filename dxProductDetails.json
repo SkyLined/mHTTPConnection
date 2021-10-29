@@ -1,9 +1,9 @@
 {
   "a0sDebugAdditionalProductNames": [
-    "mFileSystemItem",
+    "mConsole",
     "mDebugOutput",
-    "mSSL",
-    "mConsole"
+    "mFileSystemItem",
+    "mSSL"
   ],
   "a0sDependentOnProductNames": [
     "mHTTPProtocol",
@@ -22,7 +22,7 @@
     "sbRepositoryName": "mHTTPConnection",
     "sbUserName": "SkyLined"
   },
-  "oProductVersion": "2021-07-30 12:09",
+  "oProductVersion": "2021-10-29 09:58",
   "s0PythonModuleName": "mHTTPConnection",
   "sProductAuthor": "SkyLined",
   "sProductName": "mHTTPConnection",
