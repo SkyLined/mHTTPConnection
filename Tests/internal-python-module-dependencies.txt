@@ -8,6 +8,7 @@ dis
 errno
 fnmatch
 gc
+heapq
 importlib
 inspect
 linecache
@@ -15,6 +16,7 @@ lzma
 math
 msvcrt
 opcode
+pathlib
 platform
 posixpath
 queue
@@ -30,7 +32,6 @@ threading
 token
 tokenize
 traceback
-typing
 urllib
 warnings
 zipfile
