@@ -62,9 +62,8 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
     # return False if an optional transaction could not be started.
     # return True if the request was sent.
     # Can throw timeout, out-of-band-data, shutdown or disconnected exception.
-    if bStartTransaction and not oSelf.fbStartTransaction(n0TransactionTimeoutInSeconds):
-      # The connection is stopping or disconnected; the request will not be sent.
-      return False;
+    if bStartTransaction:
+      oSelf.fStartTransaction(n0TransactionTimeoutInSeconds);
     try:
       # The server should only send data in response to a request; if it sent out-of-band data we close the connection.
       sbOutOfBandData = oSelf.fsbReadAvailableBytes();
@@ -126,9 +125,8 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
     # Return None if an optional transaction could not be started.
     # Returns a cHTTPRequest object if a request was received.
     # Can throw timeout, shutdown or disconnected exception.
-    if bStartTransaction and not oSelf.fbStartTransaction(n0TransactionTimeoutInSeconds):
-      # Another transaction is active
-      return None;
+    if bStartTransaction:
+      oSelf.fStartTransaction(n0TransactionTimeoutInSeconds);
     try:
       oRequest = oSelf.__foReceiveMessage(
         # it's ok if a connection is dropped by a client before a request is received, so the above can return None.

@@ -217,7 +217,7 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
     assert oConnection, \
         "A new connection was not established even though we are not stopping!?";
     # Returns cResponse instance if response was received.
-    oResponse = oConnection.fo0SendRequestAndReceiveResponse(
+    o0Response = oConnection.fo0SendRequestAndReceiveResponse(
       oRequest,
       bStartTransaction = False,
       u0zMaxStatusLineSize = u0zMaxStatusLineSize,
@@ -233,23 +233,31 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
     if oSelf.__bStopping:
       fShowDebugOutput("Stopping.");
       return None;
-    assert oResponse, \
-        "Expected a response but got %s" % repr(oResponse);
-    oSelf.fFireCallbacks("request sent and response received", oConnection, oRequest, oResponse);
-    return oResponse;
+    assert o0Response, \
+        "Expected a response but got %s" % repr(o0Response);
+    oSelf.fFireCallbacks("request sent and response received", oConnection, oRequest, o0Response);
+    return o0Response;
   
   @ShowDebugOutput
   def __fo0StartTransactionOnExistingConnection(oSelf, n0zTransactionTimeoutInSeconds):
     oSelf.__oConnectionsPropertyLock.fAcquire();
     try:
+      # Try to find a connection that is available:
       for oConnection in oSelf.__aoConnections:
         if oSelf.__bStopping:
           return None;
-        if oConnection.fbStartTransaction(n0zTransactionTimeoutInSeconds):
-          return oConnection;
-      return None;
+        try: # Try to start a transaction; this will only succeed on an idle connection.
+          oConnection.fStartTransaction(n0zTransactionTimeoutInSeconds);
+        except cTransactionalConnectionCannotBeUsedConcurrently:
+          pass; # The connection is already in use
+        else:
+          fShowDebugOutput("Reusing existing connection to server: %s" % repr(oConnection));
+          o0Connection = oConnection;
+      else:
+        o0Connection = None;
     finally:
       oSelf.__oConnectionsPropertyLock.fRelease();
+    return o0Connection;
   
   @ShowDebugOutput
   def __foCreateNewConnectionAndStartTransaction(oSelf,
@@ -293,8 +301,7 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
         oSelf.__oConnectionsPropertyLock.fRelease();
       raise;
     # Start a transaction to prevent other threads from using it:
-    assert oConnection.fbStartTransaction(n0zTransactionTimeoutInSeconds), \
-         "Cannot start a transaction on a new connection (%s)" % repr(oConnection);
+    oConnection.fStartTransaction(n0zTransactionTimeoutInSeconds);
     # remove a pending connection and add it.
     oSelf.__oConnectionsPropertyLock.fAcquire();
     try:
