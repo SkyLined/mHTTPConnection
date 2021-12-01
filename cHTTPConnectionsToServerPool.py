@@ -202,41 +202,44 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
     # An existing connection is reused if one is available. A new connection
     # if created if none is available and there are not too many connections.
     # If not specified, always check the hostname when the connection is secure.
-    # Can throw a max-connections-reached exception
-    if oSelf.__bStopping:
-      return None;
-    oConnection = oSelf.__fo0GetConnectionAndStartTransaction(
-      n0zConnectTimeoutInSeconds = n0zConnectTimeoutInSeconds,
-      bSecure = True,
-      n0zSecureTimeoutInSeconds = n0zSecureTimeoutInSeconds,
-      n0zTransactionTimeoutInSeconds = n0zTransactionTimeoutInSeconds,
-    );
-    # oConnection can be None only if we are stopping.
-    if oSelf.__bStopping:
-      return None;
-    assert oConnection, \
-        "A new connection was not established even though we are not stopping!?";
-    # Returns cResponse instance if response was received.
-    o0Response = oConnection.fo0SendRequestAndReceiveResponse(
-      oRequest,
-      bStartTransaction = False,
-      u0zMaxStatusLineSize = u0zMaxStatusLineSize,
-      u0zMaxHeaderNameSize = u0zMaxHeaderNameSize,
-      u0zMaxHeaderValueSize = u0zMaxHeaderValueSize,
-      u0zMaxNumberOfHeaders = u0zMaxNumberOfHeaders,
-      u0zMaxBodySize = u0zMaxBodySize,
-      u0zMaxChunkSize = u0zMaxChunkSize,
-      u0zMaxNumberOfChunks = u0zMaxNumberOfChunks,
-      u0MaxNumberOfChunksBeforeDisconnecting = u0MaxNumberOfChunksBeforeDisconnecting, # disconnect and return response once this many chunks are received.
-      bEndTransaction = bEndTransaction,
-    );
-    if oSelf.__bStopping:
-      fShowDebugOutput("Stopping.");
-      return None;
-    assert o0Response, \
-        "Expected a response but got %s" % repr(o0Response);
-    oSelf.fFireCallbacks("request sent and response received", oConnection, oRequest, o0Response);
-    return o0Response;
+    # Can throw a max-connections-reached exception.
+    # This is done in a loop: if a (reused) connection turns out to be closed, 
+    # we start again, reusing another connection, or creating a new one.
+    while 1:
+      if oSelf.__bStopping:
+        return None;
+      o0Connection = oSelf.__fo0GetConnectionAndStartTransaction(
+        n0zConnectTimeoutInSeconds = n0zConnectTimeoutInSeconds,
+        bSecure = True,
+        n0zSecureTimeoutInSeconds = n0zSecureTimeoutInSeconds,
+        n0zTransactionTimeoutInSeconds = n0zTransactionTimeoutInSeconds,
+      );
+      # oConnection can be None only if we are stopping.
+      if oSelf.__bStopping:
+        return None;
+      assert o0Connection, \
+          "A new connection was not established even though we are not stopping!?";
+      oConnection = o0Connection;
+      # Returns cResponse instance if response was received.
+      o0Response = o0Connection.fo0SendRequestAndReceiveResponse(
+        oRequest,
+        bStartTransaction = False,
+        u0zMaxStatusLineSize = u0zMaxStatusLineSize,
+        u0zMaxHeaderNameSize = u0zMaxHeaderNameSize,
+        u0zMaxHeaderValueSize = u0zMaxHeaderValueSize,
+        u0zMaxNumberOfHeaders = u0zMaxNumberOfHeaders,
+        u0zMaxBodySize = u0zMaxBodySize,
+        u0zMaxChunkSize = u0zMaxChunkSize,
+        u0zMaxNumberOfChunks = u0zMaxNumberOfChunks,
+        u0MaxNumberOfChunksBeforeDisconnecting = u0MaxNumberOfChunksBeforeDisconnecting, # disconnect and return response once this many chunks are received.
+        bEndTransaction = bEndTransaction,
+      );
+      if oSelf.__bStopping:
+        fShowDebugOutput("Stopping.");
+        return None;
+      if o0Response:
+        oSelf.fFireCallbacks("request sent and response received", o0Connection, oRequest, o0Response);
+        return o0Response;
   
   @ShowDebugOutput
   def __fo0StartTransactionOnExistingConnection(oSelf, n0zTransactionTimeoutInSeconds):
