@@ -74,7 +74,10 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
           "Out-of-band data was received before request was sent!",
           {"sbOutOfBandData": sbOutOfBandData},
         );
-      oSelf.__fSendMessage(oRequest);
+      try:
+        oSelf.__fSendMessage(oRequest);
+      except (cTCPIPConnectionDisconnectedException, cTCPIPConnectionShutdownException) as oException:
+        return False; # Request could not be send because the connection is already closed.
       oSelf.fFireCallbacks("request sent", oRequest);
       return True;
     except Exception as oException:
