@@ -253,6 +253,7 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
         else:
           fShowDebugOutput("Reusing existing connection to server: %s" % repr(oConnection));
           o0Connection = oConnection;
+          break;
       else:
         o0Connection = None;
     finally:
