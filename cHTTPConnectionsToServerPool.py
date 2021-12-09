@@ -386,8 +386,11 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
   def __fHandleTerminatedCallbackFromConnection(oSelf, oConnection):
     oSelf.__oConnectionsPropertyLock.fAcquire();
     try:
-      oSelf.__aoConnections.remove(oConnection);
-      bCheckIfTerminated = oSelf.__bStopping and len(oSelf.__aoConnections) == 0;
+      if oConnection in oSelf.__aoConnections:
+        oSelf.__aoConnections.remove(oConnection);
+      else:
+        oSelf.__aoExternalizedConnections.remove(oConnection);
+      bCheckIfTerminated = oSelf.__bStopping and len(oSelf.__aoConnections) == 0 and len(oSelf.__aoExternalizedConnections) == 0;
     finally:
       oSelf.__oConnectionsPropertyLock.fRelease();
     oSelf.fFireCallbacks(
