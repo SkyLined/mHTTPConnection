@@ -44,8 +44,8 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
     super(cHTTPConnection, oSelf).__init__(*txArguments, **dxArguments);
     oSelf.fAddEvents(
       "message sent", "message received", 
-      "request sent", "request received", 
-      "response sent", "response received",
+      "request sent", "response received", "request sent and response received",
+      "request received", "response sent", "request received and response sent",
     );
   
   def foGetURLForRemoteServer(oSelf):
@@ -78,7 +78,8 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
         oSelf.__fSendMessage(oRequest);
       except (cTCPIPConnectionDisconnectedException, cTCPIPConnectionShutdownException) as oException:
         return False; # Request could not be send because the connection is already closed.
-      oSelf.fFireCallbacks("request sent", oRequest);
+      oSelf.fFireCallbacks("request sent", oRequest = oRequest);
+      oSelf.__o0LastSentRequest = oRequest;
       return True;
     except Exception as oException:
       if bStartTransaction: oSelf.fEndTransaction();
@@ -91,9 +92,13 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
     # Can throw timeout, shutdown or disconnected exception.
     try:
       oSelf.__fSendMessage(oResponse);
-      oSelf.fFireCallbacks("response sent", oResponse);
+      oLastReceivedRequest = oSelf.__o0LastReceivedRequest;
+      oSelf.__o0LastReceivedRequest = None;
     finally:
       if bEndTransaction: oSelf.fEndTransaction();
+    # callbacks are fired AFTER the transaction has terminated (that way callbacks can use the connection)
+    oSelf.fFireCallbacks("response sent", oResponse = oResponse);
+    oSelf.fFireCallbacks("request received and response sent", oRequest = oLastReceivedRequest, oResponse = oResponse);
   
   @ShowDebugOutput
   def __fSendMessage(oSelf, oMessage):
@@ -139,7 +144,8 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
         u0zMaxBodySize = u0zMaxBodySize, u0zMaxChunkSize = u0zMaxChunkSize, u0zMaxNumberOfChunks = u0zMaxNumberOfChunks,
         u0MaxNumberOfChunksBeforeDisconnecting = None,
       );
-      oSelf.fFireCallbacks("request received", oRequest);
+      oSelf.fFireCallbacks("request received", oRequest = oRequest);
+      oSelf.__o0LastReceivedRequest = oRequest;
       return oRequest;
     except Exception as oException:
       if bStartTransaction: oSelf.fEndTransaction();
@@ -168,7 +174,9 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
         u0zMaxBodySize = u0zMaxBodySize, u0zMaxChunkSize = u0zMaxChunkSize, u0zMaxNumberOfChunks = u0zMaxNumberOfChunks,
         u0MaxNumberOfChunksBeforeDisconnecting = u0MaxNumberOfChunksBeforeDisconnecting,
       );
-      oSelf.fFireCallbacks("response received", oResponse);
+      oSelf.fFireCallbacks("response received", oResponse = oResponse);
+      oSelf.fFireCallbacks("request sent and response received", oRequest = oSelf.__o0LastSentRequest, oResponse = oResponse);
+      oSelf.__o0LastSentRequest = None;
       return oResponse;
     finally:
       if bEndTransaction: oSelf.fEndTransaction();
