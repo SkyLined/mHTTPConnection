@@ -175,24 +175,27 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
     if oSelf.__bStopping:
       return None;
     fShowDebugOutput("Getting connection...");
-    if bSecure:
-      # Secure connections may already exist and can be reused:
+    n0EndTime = (time.time() + n0zConnectTimeoutInSeconds) if n0zConnectTimeoutInSeconds is not None else None;
+    while not oSelf.__bStopping:
+      # Existing idle connections may be used:
       o0Connection = oSelf.__fo0StartTransactionOnExistingConnection(n0zTransactionTimeoutInSeconds);
       if o0Connection is not None:
         return o0Connection;
       if oSelf.__bStopping:
         return None;
-    oConnection = oSelf.__foCreateNewConnectionAndStartTransaction(
-      n0zConnectTimeoutInSeconds,
-      bSecure,
-      n0zSecureTimeoutInSeconds,
-      n0zTransactionTimeoutInSeconds,
-    );
-    if oSelf.__bStopping:
-      return None;
-    assert oConnection, \
-        "A new connection was not established even though we are not stopping!?";
-    return oConnection;
+      # New connections may be established; connect timeout will be reduced if we've been through this loop before
+      n0zConnectTimeoutInSeconds = (n0EndTime - time.time()) if n0EndTime is not None else None;
+      try:
+        return oSelf.__foCreateNewConnectionAndStartTransaction(
+          n0zConnectTimeoutInSeconds,
+          bSecure,
+          n0zSecureTimeoutInSeconds,
+          n0zTransactionTimeoutInSeconds,
+        );
+      except cMaxConnectionsReachedException:
+        # We have reached the max number of connections; try reusing one again.
+        pass;
+    return None;
   
   @ShowDebugOutput
   def fo0SendRequestAndReceiveResponse(oSelf,
