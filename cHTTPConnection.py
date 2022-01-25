@@ -273,7 +273,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
       elif u0ContentLengthHeaderValue is not None:
         fShowDebugOutput("Reading %d bytes response body..." % u0ContentLengthHeaderValue);
         sb0Body = oSelf.fsbReadBytes(u0ContentLengthHeaderValue);
-      elif bConnectionCloseHeaderPresent and isinstance(cHTTPMessage, cHTTPResponse):
+      elif bConnectionCloseHeaderPresent and issubclass(cHTTPMessage, cHTTPResponse):
         # A request with a "Connection: Close" header cannot have a body, as closing the
         # connection after sending it would prevent the client from seeing the response.
         fShowDebugOutput("Reading response body until disconnected...");
