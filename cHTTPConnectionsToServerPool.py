@@ -247,7 +247,6 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
         fShowDebugOutput("Stopping.");
         return None;
       if o0Response:
-        oSelf.fFireCallbacks("request sent and response received", o0Connection, oRequest, o0Response);
         return o0Response;
   
   @ShowDebugOutput
@@ -372,6 +371,9 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
       ),
       "response received": lambda oConnection, oResponse: oSelf.fFireCallbacks(
         "response received", oConnection, oResponse
+      ),
+      "request sent and response received": lambda oConnection, oRequest, oResponse: oSelf.fFireCallbacks(
+        "request sent and response received", oConnection, oRequest, oResponse
       ),
       "terminated": oSelf.__fHandleTerminatedCallbackFromConnection,
     });
