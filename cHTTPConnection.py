@@ -62,6 +62,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
     # return False if an optional transaction could not be started.
     # return True if the request was sent.
     # Can throw timeout, out-of-band-data, shutdown or disconnected exception.
+    oSelf.fPostponeTerminatedCallback();
     if bStartTransaction:
       oSelf.fStartTransaction(n0TransactionTimeoutInSeconds);
     try:
@@ -84,22 +85,28 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
     except Exception as oException:
       if bStartTransaction: oSelf.fEndTransaction();
       raise;
-  
+    finally:
+      oSelf.fFireTerminatedCallbackIfPostponed();
   @ShowDebugOutput
   def fSendResponse(oSelf, oResponse, bEndTransaction = True):
     # Attempt to write a response to the connection.
     # Optionally end a transaction after doing so, even if an exception is thrown.
     # Can throw timeout, shutdown or disconnected exception.
+    oSelf.fPostponeTerminatedCallback();
+    bSent = False;
     try:
       oSelf.__fSendMessage(oResponse);
       oLastReceivedRequest = oSelf.__o0LastReceivedRequest;
       oSelf.__o0LastReceivedRequest = None;
+      bSent = True;
     finally:
       if bEndTransaction: oSelf.fEndTransaction();
-    # callbacks are fired AFTER the transaction has terminated (that way callbacks can use the connection)
-    oSelf.fFireCallbacks("response sent", oResponse = oResponse);
-    oSelf.fFireCallbacks("request received and response sent", oRequest = oLastReceivedRequest, oResponse = oResponse);
-  
+      # callbacks are fired AFTER the transaction has terminated (that way callbacks can use the connection)
+      if bSent:
+        oSelf.fFireCallbacks("response sent", oResponse = oResponse);
+        if oSelf.__o0LastReceivedRequest:
+          oSelf.fFireCallbacks("request received and response sent", oRequest = oLastReceivedRequest, oResponse = oResponse);
+      oSelf.fFireTerminatedCallbackIfPostponed();
   @ShowDebugOutput
   def __fSendMessage(oSelf, oMessage):
     # Serialize and send the cHTTPMessage instance.
@@ -133,6 +140,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
     # Return None if an optional transaction could not be started.
     # Returns a cHTTPRequest object if a request was received.
     # Can throw timeout, shutdown or disconnected exception.
+    oSelf.fPostponeTerminatedCallback();
     if bStartTransaction:
       oSelf.fStartTransaction(n0TransactionTimeoutInSeconds);
     try:
@@ -150,7 +158,8 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
     except Exception as oException:
       if bStartTransaction: oSelf.fEndTransaction();
       raise;
-  
+    finally:
+      oSelf.fFireTerminatedCallbackIfPostponed();
   @ShowDebugOutput
   def foReceiveResponse(oSelf,
     u0zMaxStatusLineSize = None,
@@ -165,6 +174,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
     # Can throw timeout, shutdown or disconnected exception.
     assert oSelf.bInTransaction, \
         "A transaction must be started before a response can be received over this connection.";
+    oSelf.fPostponeTerminatedCallback();
     try:
       oResponse = oSelf.__foReceiveMessage(
         # it's not ok if a connection is dropped by a server before a response is received, so the above cannot return None.
@@ -180,6 +190,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
       return oResponse;
     finally:
       if bEndTransaction: oSelf.fEndTransaction();
+      oSelf.fFireTerminatedCallbackIfPostponed();
   
   @ShowDebugOutput
   def __foReceiveMessage(oSelf,
@@ -463,23 +474,27 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
     u0MaxNumberOfChunksBeforeDisconnecting = None,
     bEndTransaction = True,
   ):
-    if not oSelf.fbSendRequest(oRequest, bStartTransaction = bStartTransaction):
-      if not bStartTransaction and bEndTransaction:
-        # If we were asked not to start a transaction but we were tasked to
-        # end it we should do so:
-        oSelf.fEndTransaction();
-      return None;
-    return oSelf.foReceiveResponse(
-      u0zMaxStatusLineSize = u0zMaxStatusLineSize,
-      u0zMaxHeaderNameSize = u0zMaxHeaderNameSize,
-      u0zMaxHeaderValueSize = u0zMaxHeaderValueSize,
-      u0zMaxNumberOfHeaders = u0zMaxNumberOfHeaders,
-      u0zMaxBodySize = u0zMaxBodySize,
-      u0zMaxChunkSize = u0zMaxChunkSize,
-      u0zMaxNumberOfChunks = u0zMaxNumberOfChunks,
-      u0MaxNumberOfChunksBeforeDisconnecting = u0MaxNumberOfChunksBeforeDisconnecting,
-      bEndTransaction = bEndTransaction,
-    );
+    oSelf.fPostponeTerminatedCallback();
+    try:
+      if not oSelf.fbSendRequest(oRequest, bStartTransaction = bStartTransaction):
+        if not bStartTransaction and bEndTransaction:
+          # If we were asked not to start a transaction but we were tasked to
+          # end it we should do so:
+          oSelf.fEndTransaction();
+        return None;
+      return oSelf.foReceiveResponse(
+        u0zMaxStatusLineSize = u0zMaxStatusLineSize,
+        u0zMaxHeaderNameSize = u0zMaxHeaderNameSize,
+        u0zMaxHeaderValueSize = u0zMaxHeaderValueSize,
+        u0zMaxNumberOfHeaders = u0zMaxNumberOfHeaders,
+        u0zMaxBodySize = u0zMaxBodySize,
+        u0zMaxChunkSize = u0zMaxChunkSize,
+        u0zMaxNumberOfChunks = u0zMaxNumberOfChunks,
+        u0MaxNumberOfChunksBeforeDisconnecting = u0MaxNumberOfChunksBeforeDisconnecting,
+        bEndTransaction = bEndTransaction,
+      );
+    finally:
+      oSelf.fFireTerminatedCallbackIfPostponed();
   
 for cException in acExceptions:
   setattr(cHTTPConnection, cException.__name__, cException);
