@@ -9,8 +9,7 @@
     "mHTTPProtocol",
     "mMultiThreading",
     "mNotProvided",
-    "mTCPIPConnection",
-    "mWindowsSDK"
+    "mTCPIPConnection"
   ],
   "asProductTypes": [
     "Python module"
