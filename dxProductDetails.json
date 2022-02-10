@@ -11,6 +11,9 @@
     "mNotProvided",
     "mTCPIPConnection"
   ],
+  "a0sReleaseAdditionalProductNames": [
+    "mWindowsSDK"
+  ],
   "asProductTypes": [
     "Python module"
   ],

@@ -5,7 +5,8 @@ try: # mDebugOutput use is Optional
 except ModuleNotFoundError as oException:
   if oException.args[0] != "No module named 'mDebugOutput'":
     raise;
-  ShowDebugOutput = fShowDebugOutput = lambda x: x; # NOP
+  ShowDebugOutput = lambda x: x; # NOP
+  fShowDebugOutput = lambda x, y = None: x; # NOP
 
 from mMultiThreading import cLock, cWithCallbacks;
 from mNotProvided import *;
@@ -35,7 +36,7 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
       n0DeadlockTimeoutInSeconds = gnDeadlockTimeoutInSeconds
     );
     oSelf.__aoConnections = []; # The connections this pool can use itself
-    oSelf.__aoExternalizedConnections = []; # The connections this pool has provided for use by others.
+    oSelf.__aoExternallyManagedConnections = []; # The connections this pool has provided for use by others.
     oSelf.__uPendingConnects = 0;
     
     oSelf.__bStopping = False;
@@ -71,7 +72,7 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
   
   @property
   def uConnectionsCount(oSelf):
-    return len(oSelf.__aoConnections) + len(oSelf.__aoExternalizedConnections);
+    return len(oSelf.__aoConnections) + len(oSelf.__aoExternallyManagedConnections);
   
 #  @property
 #  def aoConnections(oSelf):
@@ -87,7 +88,11 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
         "This functions should not be called if we are not stopping!";
     oSelf.__oConnectionsPropertyLock.fAcquire();
     try:
-      if oSelf.__aoConnections or oSelf.__aoExternalizedConnections:
+      if oSelf.__aoConnections or oSelf.__aoExternallyManagedConnections:
+        if oSelf.__aoConnections:
+          fShowDebugOutput("There are %d connections left." % len(oSelf.__aoConnections));
+        if oSelf.__aoExternallyManagedConnections:
+          fShowDebugOutput("There are %d externalized connections left." % len(oSelf.__aoExternallyManagedConnections));
         # There are existing connections; termination will be reported when
         # they all terminate too.
         return;
@@ -110,14 +115,30 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
       return fShowDebugOutput("Already terminated");
     if oSelf.__bStopping:
       return fShowDebugOutput("Already stopping");
-    fShowDebugOutput("Stopping...");
-    oSelf.__bStopping = True;
-    # We are now officially stopping, so there should not be any new connections
-    # added from this point onward.  If there are existing connections, we will
-    # stop them:
-    for oConnection in oSelf.__aoConnections[:]:
-      oConnection.fStop();
-    # If there are no connections and we have not terminated, do so now:
+    oSelf.__oConnectionsPropertyLock.fAcquire();
+    try:
+      aoConnectionsThatAreNotStopping = [
+        oConnection
+        for oConnection in oSelf.__aoConnections
+        if not oConnection.bStopping
+      ];
+      aoExternallyManagedConnectionsThatAreNotStopping = [
+        oConnection
+        for oConnection in oSelf.__aoExternallyManagedConnections
+        if not oConnection.bStopping
+      ];
+      assert not aoExternallyManagedConnectionsThatAreNotStopping, \
+          "There are externally managed connections that have not been stopped yet: %s" % \
+          ", ".join(str(oConnection) for oConnection in aoExternallyManagedConnectionsThatAreNotStopping);
+      fShowDebugOutput("Stopping...");
+      oSelf.__bStopping = True;
+    finally:
+      oSelf.__oConnectionsPropertyLock.fRelease();
+    # We are stopping. New connections will no longer be created.
+    # Existing connections should all be stopping:
+    for oConnection in aoConnectionsThatAreNotStopping:
+        oConnection.fStop();
+    # Check if we have already terminated, or if some connections are still stopping.
     oSelf.__fReportTerminatedIfNoMoreConnectionsExist();
   
   @ShowDebugOutput
@@ -141,7 +162,7 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
   def fo0GetConnectionAndStartTransaction(
     oSelf,
     n0zConnectTimeoutInSeconds = zNotProvided,
-    bSecure = True,
+    bDoNotUseSLL = False,
     n0zSecureTimeoutInSeconds = zNotProvided,
     n0zTransactionTimeoutInSeconds = zNotProvided,
   ):
@@ -151,16 +172,18 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
     # the connection.
     o0Connection = oSelf.__fo0GetConnectionAndStartTransaction(
       n0zConnectTimeoutInSeconds,
-      bSecure,
+      bDoNotUseSLL,
       n0zSecureTimeoutInSeconds,
       n0zTransactionTimeoutInSeconds,
     );
     if o0Connection is None:
+      assert oSelf.__bStopping, \
+          "A new connection was not established even though we are not stopping!?";
       return None;
     oSelf.__oConnectionsPropertyLock.fAcquire();
     try:
       oSelf.__aoConnections.remove(o0Connection);
-      oSelf.__aoExternalizedConnections.append(o0Connection);
+      oSelf.__aoExternallyManagedConnections.append(o0Connection);
     finally:
       oSelf.__oConnectionsPropertyLock.fRelease();
     return o0Connection;
@@ -168,7 +191,7 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
   def __fo0GetConnectionAndStartTransaction(
     oSelf,
     n0zConnectTimeoutInSeconds,
-    bSecure,
+    bDoNotUseSLL,
     n0zSecureTimeoutInSeconds,
     n0zTransactionTimeoutInSeconds,
   ):
@@ -188,11 +211,11 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
       try:
         return oSelf.__foCreateNewConnectionAndStartTransaction(
           n0zConnectTimeoutInSeconds,
-          bSecure,
+          bDoNotUseSLL,
           n0zSecureTimeoutInSeconds,
           n0zTransactionTimeoutInSeconds,
         );
-      except cMaxConnectionsReachedException:
+      except cHTTPMaxConnectionsToServerReachedException:
         # We have reached the max number of connections; try reusing one again.
         pass;
     return None;
@@ -219,62 +242,78 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
         return None;
       o0Connection = oSelf.__fo0GetConnectionAndStartTransaction(
         n0zConnectTimeoutInSeconds = n0zConnectTimeoutInSeconds,
-        bSecure = True,
+        bDoNotUseSLL = False,
         n0zSecureTimeoutInSeconds = n0zSecureTimeoutInSeconds,
         n0zTransactionTimeoutInSeconds = n0zTransactionTimeoutInSeconds,
       );
-      # oConnection can be None only if we are stopping.
-      if oSelf.__bStopping:
+      if o0Connection is None:
+        assert oSelf.__bStopping, \
+            "A new connection was not established even though we are not stopping!?";
         return None;
-      assert o0Connection, \
-          "A new connection was not established even though we are not stopping!?";
       oConnection = o0Connection;
-      # Returns cResponse instance if response was received.
-      o0Response = o0Connection.fo0SendRequestAndReceiveResponse(
-        oRequest,
-        bStartTransaction = False,
-        u0zMaxStatusLineSize = u0zMaxStatusLineSize,
-        u0zMaxHeaderNameSize = u0zMaxHeaderNameSize,
-        u0zMaxHeaderValueSize = u0zMaxHeaderValueSize,
-        u0zMaxNumberOfHeaders = u0zMaxNumberOfHeaders,
-        u0zMaxBodySize = u0zMaxBodySize,
-        u0zMaxChunkSize = u0zMaxChunkSize,
-        u0zMaxNumberOfChunks = u0zMaxNumberOfChunks,
-        u0MaxNumberOfChunksBeforeDisconnecting = u0MaxNumberOfChunksBeforeDisconnecting, # disconnect and return response once this many chunks are received.
-        bEndTransaction = bEndTransaction,
-      );
-      if oSelf.__bStopping:
-        fShowDebugOutput("Stopping.");
-        return None;
-      if o0Response:
+      try:
+        # Returns cResponse instance if response was received.
+        o0Response = o0Connection.fo0SendRequestAndReceiveResponse(
+          oRequest,
+          bStartTransaction = False, # We've already don this
+          u0zMaxStatusLineSize = u0zMaxStatusLineSize,
+          u0zMaxHeaderNameSize = u0zMaxHeaderNameSize,
+          u0zMaxHeaderValueSize = u0zMaxHeaderValueSize,
+          u0zMaxNumberOfHeaders = u0zMaxNumberOfHeaders,
+          u0zMaxBodySize = u0zMaxBodySize,
+          u0zMaxChunkSize = u0zMaxChunkSize,
+          u0zMaxNumberOfChunks = u0zMaxNumberOfChunks,
+          u0MaxNumberOfChunksBeforeDisconnecting = u0MaxNumberOfChunksBeforeDisconnecting, # disconnect and return response once this many chunks are received.
+          bEndTransaction = False, # We'll do this later
+        );
+        if oSelf.__bStopping:
+          fShowDebugOutput("Stopping.");
+          return None;
         return o0Response;
-  
+      except:
+        # Make sure we end the transaction we started if there was an error.
+        bEndTransaction = True;
+        raise;
+      finally:
+        if bEndTransaction:
+          oConnection.fEndTransaction();
   @ShowDebugOutput
   def __fo0StartTransactionOnExistingConnection(oSelf, n0zTransactionTimeoutInSeconds):
+    # We need to postpone and terminate callbacks because we have a lock that
+    # these callbacks also want. If we do not postpone them, there will be a
+    # deadlock.
     oSelf.__oConnectionsPropertyLock.fAcquire();
+    aoConnectionsWithPotentiallyPostponedTerminatedCallbacks = [];
     try:
       # Try to find a connection that is available:
       for oConnection in oSelf.__aoConnections:
         if oSelf.__bStopping:
           return None;
+        fShowDebugOutput(oSelf, "Testing connection: %s" % repr(oConnection));
+        oConnection.fPostponeTerminatedCallback();
+        aoConnectionsWithPotentiallyPostponedTerminatedCallbacks.append(oConnection);
         try: # Try to start a transaction; this will only succeed on an idle connection.
           oConnection.fStartTransaction(n0zTransactionTimeoutInSeconds);
-        except cTransactionalConnectionCannotBeUsedConcurrently:
-          pass; # The connection is already in use
+        except cTCPIPConnectionCannotBeUsedConcurrentlyException:
+          fShowDebugOutput(oSelf, "Connection is in use.");
+        except cTCPIPConnectionShutdownException:
+          fShowDebugOutput(oSelf, "Connection is shut down.");
+        except cTCPIPConnectionDisconnectedException:
+          fShowDebugOutput(oSelf, "Connection is disconnected.");
         else:
-          fShowDebugOutput("Reusing existing connection to server: %s" % repr(oConnection));
-          o0Connection = oConnection;
-          break;
-      else:
-        o0Connection = None;
+          fShowDebugOutput(oSelf, "Transaction started: connection is available.");
+          return oConnection;
+      return None;
     finally:
       oSelf.__oConnectionsPropertyLock.fRelease();
-    return o0Connection;
+      # Fire any postponed terminated callbacks.
+      for oConnection in aoConnectionsWithPotentiallyPostponedTerminatedCallbacks:
+        oConnection.fFireTerminatedCallbackIfPostponed();
   
   @ShowDebugOutput
   def __foCreateNewConnectionAndStartTransaction(oSelf,
     n0zConnectTimeoutInSeconds,
-    bSecure,
+    bDoNotUseSLL,
     n0zSecureTimeoutInSeconds,
     n0zTransactionTimeoutInSeconds
   ):
@@ -286,9 +325,12 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
         oSelf.__u0MaxNumberOfConnectionsToServer is not None
         and len(oSelf.__aoConnections) + oSelf.__uPendingConnects == oSelf.__u0MaxNumberOfConnectionsToServer
       ):
-        raise cMaxConnectionsReachedException(
-          "Cannot create more connections to the server",
-          {"uMaxNumberOfConnectionsToServer": oSelf.__u0MaxNumberOfConnectionsToServer}
+       raise cHTTPMaxConnectionsToServerReachedException(
+          "Maximum number of connections to server reached.",
+          dxDetails = {
+            "bServerIsAProxy": False,
+            "uMaxNumberOfConnections": oSelf.__u0MaxNumberOfConnectionsToServer, # Cannot be None at this point
+          },
         );
       oSelf.__uPendingConnects += 1;
     finally:
@@ -300,7 +342,7 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
         sbHostnameOrIPAddress = oSelf.__oServerBaseURL.sbHostname,
         uPortNumber = oSelf.__oServerBaseURL.uPortNumber,
         n0zConnectTimeoutInSeconds = n0zConnectTimeoutInSeconds,
-        o0SSLContext = oSelf.__o0SSLContext if bSecure else None,
+        o0SSLContext = None if bDoNotUseSLL else oSelf.__o0SSLContext,
         n0zSecureTimeoutInSeconds = n0zSecureTimeoutInSeconds,
         f0HostnameOrIPAddressInvalidCallback = lambda sbHostnameOrIPAddress: oSelf.fFireCallbacks(
           "server hostname or ip address invalid",
@@ -391,8 +433,8 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
       if oConnection in oSelf.__aoConnections:
         oSelf.__aoConnections.remove(oConnection);
       else:
-        oSelf.__aoExternalizedConnections.remove(oConnection);
-      bCheckIfTerminated = oSelf.__bStopping and len(oSelf.__aoConnections) == 0 and len(oSelf.__aoExternalizedConnections) == 0;
+        oSelf.__aoExternallyManagedConnections.remove(oConnection);
+      bCheckIfTerminated = oSelf.__bStopping and len(oSelf.__aoConnections) == 0 and len(oSelf.__aoExternallyManagedConnections) == 0;
     finally:
       oSelf.__oConnectionsPropertyLock.fRelease();
     oSelf.fFireCallbacks(

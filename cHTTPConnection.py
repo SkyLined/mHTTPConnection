@@ -5,7 +5,8 @@ try: # mDebugOutput use is Optional
 except ModuleNotFoundError as oException:
   if oException.args[0] != "No module named 'mDebugOutput'":
     raise;
-  ShowDebugOutput = fShowDebugOutput = lambda x: x; # NOP
+  ShowDebugOutput = lambda fx: fx; # NOP
+  fShowDebugOutput = lambda x, s0 = None: x; # NOP
 
 from mHTTPProtocol import cHTTPRequest, cHTTPResponse, cURL;
 from mNotProvided import *;
@@ -62,37 +63,55 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
     # return False if an optional transaction could not be started.
     # return True if the request was sent.
     # Can throw timeout, out-of-band-data, shutdown or disconnected exception.
-    oSelf.fPostponeTerminatedCallback();
     if bStartTransaction:
       oSelf.fStartTransaction(n0TransactionTimeoutInSeconds);
     try:
       # The server should only send data in response to a request; if it sent out-of-band data we close the connection.
       sbOutOfBandData = oSelf.fsbReadAvailableBytes();
       if sbOutOfBandData:
-        # The server sent out-of-band data; close the connection and raise an exception.
+        # The request will not be send because the server sent out-of-band data.
         oSelf.fDisconnect();
+        # This is an unexpected error by the server: raise an exception to
+        # report it.
         raise cHTTPOutOfBandDataException(
           "Out-of-band data was received before request was sent!",
-          {"sbOutOfBandData": sbOutOfBandData},
+          o0Connection = oSelf,
+          dxDetails = {
+            "sbOutOfBandData": sbOutOfBandData
+          },
         );
       try:
         oSelf.__fSendMessage(oRequest);
-      except (cTCPIPConnectionDisconnectedException, cTCPIPConnectionShutdownException) as oException:
-        return False; # Request could not be send because the connection is already closed.
+      except cTCPIPConnectionShutdownException:
+        # The request could not be send because the connection was shut down.
+        # This is acceptable (the server no longer wanted to keep the connection
+        # open). Fully disconnect the connection, end the transaction, and then
+        # report that the request was not sent, so the caller can decide to try
+        # again on a new connection.
+        oSelf.fDisconnect();
+        oSelf.fEndTransaction();
+        return False;
+      except cTCPIPConnectionDisconnectedException:
+        # The request could not be send because the connection was closed.
+        # This is acceptable (the server no longer wanted to keep the connection
+        # open, or the network connection was reset). End the transaction and
+        # report that the request was not sent, so the caller can decide to try
+        # again on a new connection.
+        oSelf.fEndTransaction();
+        return False;
       oSelf.fFireCallbacks("request sent", oRequest = oRequest);
       oSelf.__o0LastSentRequest = oRequest;
       return True;
     except Exception as oException:
-      if bStartTransaction: oSelf.fEndTransaction();
+      if bStartTransaction:
+        oSelf.fEndTransaction();
       raise;
-    finally:
-      oSelf.fFireTerminatedCallbackIfPostponed();
+  
   @ShowDebugOutput
   def fSendResponse(oSelf, oResponse, bEndTransaction = True):
     # Attempt to write a response to the connection.
     # Optionally end a transaction after doing so, even if an exception is thrown.
     # Can throw timeout, shutdown or disconnected exception.
-    oSelf.fPostponeTerminatedCallback();
     bSent = False;
     try:
       oSelf.__fSendMessage(oResponse);
@@ -100,13 +119,14 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
       oSelf.__o0LastReceivedRequest = None;
       bSent = True;
     finally:
-      if bEndTransaction: oSelf.fEndTransaction();
+      if bEndTransaction:
+        oSelf.fEndTransaction();
       # callbacks are fired AFTER the transaction has terminated (that way callbacks can use the connection)
       if bSent:
         oSelf.fFireCallbacks("response sent", oResponse = oResponse);
         if oSelf.__o0LastReceivedRequest:
           oSelf.fFireCallbacks("request received and response sent", oRequest = oLastReceivedRequest, oResponse = oResponse);
-      oSelf.fFireTerminatedCallbackIfPostponed();
+  
   @ShowDebugOutput
   def __fSendMessage(oSelf, oMessage):
     # Serialize and send the cHTTPMessage instance.
@@ -133,6 +153,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
     u0zMaxHeaderNameSize = zNotProvided, u0zMaxHeaderValueSize = zNotProvided, u0zMaxNumberOfHeaders = zNotProvided,
     u0zMaxBodySize = zNotProvided, u0zMaxChunkSize = zNotProvided, u0zMaxNumberOfChunks = zNotProvided, # throw exception if more than this many chunks are received
     bStartTransaction = True, n0TransactionTimeoutInSeconds = None,
+    bStrictErrorChecking = True,
   ):
     # Attempt to receive a request from the connection.
     # Optionally start a transaction before doing so.
@@ -140,7 +161,6 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
     # Return None if an optional transaction could not be started.
     # Returns a cHTTPRequest object if a request was received.
     # Can throw timeout, shutdown or disconnected exception.
-    oSelf.fPostponeTerminatedCallback();
     if bStartTransaction:
       oSelf.fStartTransaction(n0TransactionTimeoutInSeconds);
     try:
@@ -151,15 +171,15 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
         u0zMaxHeaderNameSize = u0zMaxHeaderNameSize, u0zMaxHeaderValueSize = u0zMaxHeaderValueSize, u0zMaxNumberOfHeaders = u0zMaxNumberOfHeaders,
         u0zMaxBodySize = u0zMaxBodySize, u0zMaxChunkSize = u0zMaxChunkSize, u0zMaxNumberOfChunks = u0zMaxNumberOfChunks,
         u0MaxNumberOfChunksBeforeDisconnecting = None,
+        bStrictErrorChecking = bStrictErrorChecking,
       );
       oSelf.fFireCallbacks("request received", oRequest = oRequest);
       oSelf.__o0LastReceivedRequest = oRequest;
       return oRequest;
     except Exception as oException:
-      if bStartTransaction: oSelf.fEndTransaction();
+      if bStartTransaction:
+        oSelf.fEndTransaction();
       raise;
-    finally:
-      oSelf.fFireTerminatedCallbackIfPostponed();
   @ShowDebugOutput
   def foReceiveResponse(oSelf,
     u0zMaxStatusLineSize = None,
@@ -167,6 +187,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
     u0zMaxBodySize = None, u0zMaxChunkSize = None, u0zMaxNumberOfChunks = None, # throw exception if more than this many chunks are received
     u0MaxNumberOfChunksBeforeDisconnecting = None, # disconnect and return response once this many chunks are received.
     bEndTransaction = True,
+    bStrictErrorChecking = True,
   ):
     # Attempt to receive a response from the connection.
     # Optionally end a transaction after doing so, even if an exception is thrown.
@@ -174,7 +195,6 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
     # Can throw timeout, shutdown or disconnected exception.
     assert oSelf.bInTransaction, \
         "A transaction must be started before a response can be received over this connection.";
-    oSelf.fPostponeTerminatedCallback();
     try:
       oResponse = oSelf.__foReceiveMessage(
         # it's not ok if a connection is dropped by a server before a response is received, so the above cannot return None.
@@ -183,14 +203,15 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
         u0zMaxHeaderNameSize = u0zMaxHeaderNameSize, u0zMaxHeaderValueSize = u0zMaxHeaderValueSize, u0zMaxNumberOfHeaders = u0zMaxNumberOfHeaders,
         u0zMaxBodySize = u0zMaxBodySize, u0zMaxChunkSize = u0zMaxChunkSize, u0zMaxNumberOfChunks = u0zMaxNumberOfChunks,
         u0MaxNumberOfChunksBeforeDisconnecting = u0MaxNumberOfChunksBeforeDisconnecting,
+        bStrictErrorChecking = bStrictErrorChecking,
       );
       oSelf.fFireCallbacks("response received", oResponse = oResponse);
       oSelf.fFireCallbacks("request sent and response received", oRequest = oSelf.__o0LastSentRequest, oResponse = oResponse);
       oSelf.__o0LastSentRequest = None;
       return oResponse;
     finally:
-      if bEndTransaction: oSelf.fEndTransaction();
-      oSelf.fFireTerminatedCallbackIfPostponed();
+      if bEndTransaction:
+        oSelf.fEndTransaction();
   
   @ShowDebugOutput
   def __foReceiveMessage(oSelf,
@@ -203,6 +224,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
     u0zMaxChunkSize,
     u0zMaxNumberOfChunks,
     u0MaxNumberOfChunksBeforeDisconnecting,
+    bStrictErrorChecking,
   ):
     # Read and parse a HTTP message.
     # Returns a cHTTPMessage instance.
@@ -216,10 +238,20 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
     u0MaxNumberOfChunks  = fxGetFirstProvidedValue(u0zMaxNumberOfChunks,   oSelf.u0DefaultMaxNumberOfChunks);
     try:
       # Read and parse status line
-      dxConstructorStatusLineArguments = oSelf.__fdxReadAndParseStatusLine(cHTTPMessage, u0MaxStatusLineSize);
+      dxConstructorStatusLineArguments = oSelf.__fdxReadAndParseStatusLine(
+        cHTTPMessage,
+        u0MaxStatusLineSize,
+        bStrictErrorChecking,
+      );
       
       # Read and parse headers
-      o0Headers = oSelf.__fo0ReadAndParseHeaders(cHTTPMessage, u0MaxHeaderNameSize, u0MaxHeaderValueSize, u0MaxNumberOfHeaders);
+      o0Headers = oSelf.__fo0ReadAndParseHeaders(
+        cHTTPMessage,
+        u0MaxHeaderNameSize,
+        u0MaxHeaderValueSize,
+        u0MaxNumberOfHeaders,
+        bStrictErrorChecking,
+      );
       # Find out what headers are present and at the same time do some sanity checking:
       # (this can throw a cHTTPInvalidMessageException if multiple Content-Length headers exist with different values)
       o0ContentLengthHeader = o0Headers and o0Headers.fo0GetUniqueHeaderForName(b"Content-Length");
@@ -240,12 +272,14 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
         except ValueError:
           raise cHTTPInvalidMessageException(
             "The Content-Length header was invalid.",
-            {"o0ContentLengthHeader": o0ContentLengthHeader},
+            o0Connection = oSelf,
+            dxDetails = {"sbContentLengthHeaderValue": o0ContentLengthHeader.sbValue},
           );
         if u0MaxBodySize is not None and u0ContentLengthHeaderValue > u0MaxBodySize:
           raise cHTTPInvalidMessageException(
             "The Content-Length header was too large.",
-            {"o0ContentLengthHeader": o0ContentLengthHeader, "u0MaxBodySize": u0MaxBodySize},
+            o0Connection = oSelf,
+            dxDetails = {"uContentLengthHeaderValue": u0ContentLengthHeaderValue, "uMaxBodySize": u0MaxBodySize},
           );
       
       # Read and decode/decompress body
@@ -261,14 +295,21 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
         );
         if not bDisconnected:
           # More "headers" may follow.
-          o0AdditionalHeaders = oSelf.__fo0ReadAndParseHeaders(cHTTPMessage, u0MaxHeaderNameSize, u0MaxHeaderValueSize, u0MaxNumberOfHeaders);
+          o0AdditionalHeaders = oSelf.__fo0ReadAndParseHeaders(
+            cHTTPMessage,
+            u0MaxHeaderNameSize,
+            u0MaxHeaderValueSize,
+            u0MaxNumberOfHeaders,
+            bStrictErrorChecking,
+          );
           if o0AdditionalHeaders:
             for sbIllegalHeaderName in [b"Transfer-Encoding", b"Content-Length"]:
               o0IllegalHeader = o0AdditionalHeaders.fo0GetUniqueHeaderForName(sbIllegalHeaderName);
               if o0IllegalHeader is not None:
                 raise cHTTPInvalidMessageException(
                   "The message was not valid because it contained a %s header after the chunked body." % sbIllegalHeaderName,
-                  {"oIllegalHeader": o0IllegalHeader},
+                  o0Connection = oSelf,
+                  dxDetails = {"oIllegalHeader": o0IllegalHeader},
                 );
       elif u0ContentLengthHeaderValue is not None:
         fShowDebugOutput("Reading %d bytes response body..." % u0ContentLengthHeaderValue);
@@ -308,6 +349,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
   def __fdxReadAndParseStatusLine(oSelf,
     cHTTPMessage,
     u0MaxStatusLineSize,
+    bStrictErrorChecking,
   ):
     fShowDebugOutput("Reading status line...");
     sb0StatusLineCRLF = oSelf.fsb0ReadUntilMarker(b"\r\n", u0MaxNumberOfBytes = u0MaxStatusLineSize);
@@ -315,10 +357,11 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
       sbStatusLine = oSelf.fsbReadBufferedData();
       raise cHTTPInvalidMessageException(
         "The status line was too large.",
-        {"sbStatusLine": sbStatusLine, "len(sStatusLine)<at least>": len(sbStatusLine), "u0MaxStatusLineSize": u0MaxStatusLineSize},
+        o0Connection = oSelf,
+        dxDetails = {"sbStatusLine": sbStatusLine, "u0MaxStatusLineSize": u0MaxStatusLineSize},
       );
     fShowDebugOutput("Parsing status line...");
-    return cHTTPMessage.fdxParseStatusLine(sb0StatusLineCRLF[:-2]);
+    return cHTTPMessage.fdxParseStatusLine(sb0StatusLineCRLF[:-2], o0Connection = oSelf, bStrictErrorChecking = bStrictErrorChecking);
   
   @ShowDebugOutput
   def __fo0ReadAndParseHeaders(oSelf,
@@ -326,6 +369,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
     u0MaxHeaderNameSize,
     u0MaxHeaderValueSize,
     u0MaxNumberOfHeaders,
+    bStrictErrorChecking,
   ):
     fShowDebugOutput("Reading headers...");
     if u0MaxHeaderNameSize is None or u0MaxHeaderValueSize is None:
@@ -338,8 +382,9 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
       if sb0HeaderLineCRLF is None:
         sbHeaderLine = oSelf.fsbReadBufferedData();
         raise cHTTPInvalidMessageException(
-          "A hreader line was too large.",
-          {"sbHeaderLine": sbHeaderLine, "len(sHeaderLine)<at least>": len(sbHeaderLine), "u0MaxHeaderLineSize": u0MaxHeaderLineSize},
+          "A header line was too large.",
+          o0Connection = oSelf,
+          dxDetails = {"sbHeaderLine": sbHeaderLine, "u0MaxHeaderLineSize": u0MaxHeaderLineSize},
         );
       sbHeaderLine = sb0HeaderLineCRLF[:-2];
       if len(sbHeaderLine) == 0:
@@ -347,7 +392,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
       asbHeaderLines.append(sbHeaderLine);
     if len(asbHeaderLines) == 0:
       return None;
-    return cHTTPMessage.foParseHeaderLines(asbHeaderLines);
+    return cHTTPMessage.foParseHeaderLines(asbHeaderLines, o0Connection = oSelf, bStrictErrorChecking = bStrictErrorChecking);
   
   @ShowDebugOutput
   def __fxReadAndParseBodyChunks(oSelf,
@@ -377,7 +422,8 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
         if len(asbBodyChunks) == uMaxNumberOfChunks:
           raise cHTTPInvalidMessageException(
             "There are too many body chunks.",
-            {"uMaxNumberOfChunks": uMaxNumberOfChunks},
+            o0Connection = oSelf,
+            dxDetails = {"uMaxNumberOfChunks": uMaxNumberOfChunks},
           );
       fShowDebugOutput("Reading response body chunk #%d header line..." % (len(asbBodyChunks) + 1));
       # Read size in the chunk header
@@ -387,7 +433,8 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
         if uMinimumNumberOfBodyChunksBytes > uContentLengthHeaderValue:
           raise cHTTPInvalidMessageException(
             "There are more bytes in the body chunks than the Content-Length header indicated.",
-            {"uContentLengthHeaderValue": uContentLengthHeaderValue, "uMinimumNumberOfBodyChunksBytes": uMinimumNumberOfBodyChunksBytes},
+            o0Connection = oSelf,
+            dxDetails = {"uContentLengthHeaderValue": uContentLengthHeaderValue, "uMinimumNumberOfBodyChunksBytes": uMinimumNumberOfBodyChunksBytes},
           );
         if (
           u0MaxNumberOfBytesInBodyRemaining is not None
@@ -400,21 +447,24 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
         sbChunkHeaderLine = oSelf.fsbReadBufferedData();
         raise cHTTPInvalidMessageException(
           "A body chunk header line was too large.",
-          {"sbChunkHeaderLine": sbChunkHeaderLine, "uMaxChunkHeaderLineSize": u0MaxChunkHeaderLineSize},
+          o0Connection = oSelf,
+          dxDetails = {"sbChunkHeaderLine": sbChunkHeaderLine, "uMaxChunkHeaderLineSize": u0MaxChunkHeaderLineSize},
         );
       uTotalNumberOfBodyChunkBytes += len(sb0ChunkHeaderLineCRLF);
       sbChunkHeaderLine = sb0ChunkHeaderLineCRLF[:-2];
       if b";" in sbChunkHeaderLine:
         raise cHTTPInvalidMessageException(
           "A body chunk header line contained an extension, which is not currently supported.",
-          {"sbChunkHeaderLine": sbChunkHeaderLine},
+          o0Connection = oSelf,
+          dxDetails = {"sbChunkHeaderLine": sbChunkHeaderLine},
         );
       try:
         uChunkSize = int(sbChunkHeaderLine, 16);
       except ValueError:
         raise cHTTPInvalidMessageException(
           "A body chunk header line contained an invalid character in the chunk size.",
-          {"sbChunkHeaderLine": sbChunkHeaderLine},
+          o0Connection = oSelf,
+          dxDetails = {"sbChunkHeaderLine": sbChunkHeaderLine},
         );
       if uChunkSize == 0:
         break;
@@ -423,14 +473,16 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
         if uMinimumNumberOfBodyChunksBytes > uContentLengthHeaderValue:
           raise cHTTPInvalidMessageException(
             "There are more bytes in the body chunks than the Content-Length header indicated.",
-            {"uContentLengthHeaderValue": uContentLengthHeaderValue, "uMinimumNumberOfBodyChunksBytes": uMinimumNumberOfBodyChunksBytes},
+            o0Connection = oSelf,
+            dxDetails = {"uContentLengthHeaderValue": uContentLengthHeaderValue, "uMinimumNumberOfBodyChunksBytes": uMinimumNumberOfBodyChunksBytes},
           );
       if u0MaxChunkSize is not None:
         uMaxChunkSize = u0MaxChunkSize;
         if uChunkSize > uMaxChunkSize:
           raise cHTTPInvalidMessageException(
             "A body chunk was too large.",
-            {"uMaxChunkSize": uMaxChunkSize, "uChunkSize": uChunkSize},
+            o0Connection = oSelf,
+            dxDetails = {"uMaxChunkSize": uMaxChunkSize, "uChunkSize": uChunkSize},
           );
       # Check chunk size and number of chunks
       uTotalNumberOfBodyBytesInChunks += uChunkSize;
@@ -439,7 +491,8 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
         if uTotalNumberOfBodyBytesInChunks > uMaxBodySize:
           raise cHTTPInvalidMessageException(
             "There are too many bytes in the body chunks.",
-            {"uMaxBodySize": uMaxBodySize, "uMinimumNumberOfBodyBytesInBodyChunks": uTotalNumberOfBodyBytesInChunks},
+            o0Connection = oSelf,
+            dxDetails = {"uMaxBodySize": uMaxBodySize, "uMinimumNumberOfBodyBytesInBodyChunks": uTotalNumberOfBodyBytesInChunks},
           );
       # Read the chunk
       fShowDebugOutput("Reading response body chunk #%d (%d bytes)..." % (len(asbBodyChunks) + 1, uChunkSize));
@@ -447,7 +500,8 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
       if sbChunkCRLF[-2:] != b"\r\n":
         raise cHTTPInvalidMessageException(
           "A body chunk did not end with CRLF.",
-          {"sbChunkCRLF": sbChunkCRLF},
+          o0Connection = oSelf,
+          dxDetails = {"sbChunkCRLF": sbChunkCRLF},
         );
       uTotalNumberOfBodyChunkBytes += len(sbChunkCRLF);
       asbBodyChunks.append(sbChunkCRLF[:-2]);
@@ -455,7 +509,8 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
       if uTotalNumberOfBodyChunkBytes < uContentLengthHeaderValue:
         raise cHTTPInvalidMessageException(
           "There are less bytes in the body chunks than the Content-Length header indicated.",
-          {"uContentLengthHeaderValue": uContentLengthHeaderValue, "uTotalNumberOfBodyChunkBytes": uTotalNumberOfBodyChunkBytes},
+          o0Connection = oSelf,
+          dxDetails = {"uContentLengthHeaderValue": uContentLengthHeaderValue, "uTotalNumberOfBodyChunkBytes": uTotalNumberOfBodyChunkBytes},
         );
     return (asbBodyChunks, False);
   
@@ -474,27 +529,23 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
     u0MaxNumberOfChunksBeforeDisconnecting = None,
     bEndTransaction = True,
   ):
-    oSelf.fPostponeTerminatedCallback();
-    try:
-      if not oSelf.fbSendRequest(oRequest, bStartTransaction = bStartTransaction):
-        if not bStartTransaction and bEndTransaction:
-          # If we were asked not to start a transaction but we were tasked to
-          # end it we should do so:
-          oSelf.fEndTransaction();
-        return None;
-      return oSelf.foReceiveResponse(
-        u0zMaxStatusLineSize = u0zMaxStatusLineSize,
-        u0zMaxHeaderNameSize = u0zMaxHeaderNameSize,
-        u0zMaxHeaderValueSize = u0zMaxHeaderValueSize,
-        u0zMaxNumberOfHeaders = u0zMaxNumberOfHeaders,
-        u0zMaxBodySize = u0zMaxBodySize,
-        u0zMaxChunkSize = u0zMaxChunkSize,
-        u0zMaxNumberOfChunks = u0zMaxNumberOfChunks,
-        u0MaxNumberOfChunksBeforeDisconnecting = u0MaxNumberOfChunksBeforeDisconnecting,
-        bEndTransaction = bEndTransaction,
-      );
-    finally:
-      oSelf.fFireTerminatedCallbackIfPostponed();
+    if not oSelf.fbSendRequest(oRequest, bStartTransaction = bStartTransaction):
+      if not bStartTransaction and bEndTransaction:
+        # If we were asked not to start a transaction but we were tasked to
+        # end it we should do so:
+        oSelf.fEndTransaction();
+      return None;
+    return oSelf.foReceiveResponse(
+      u0zMaxStatusLineSize = u0zMaxStatusLineSize,
+      u0zMaxHeaderNameSize = u0zMaxHeaderNameSize,
+      u0zMaxHeaderValueSize = u0zMaxHeaderValueSize,
+      u0zMaxNumberOfHeaders = u0zMaxNumberOfHeaders,
+      u0zMaxBodySize = u0zMaxBodySize,
+      u0zMaxChunkSize = u0zMaxChunkSize,
+      u0zMaxNumberOfChunks = u0zMaxNumberOfChunks,
+      u0MaxNumberOfChunksBeforeDisconnecting = u0MaxNumberOfChunksBeforeDisconnecting,
+      bEndTransaction = bEndTransaction,
+    );
   
 for cException in acExceptions:
   setattr(cHTTPConnection, cException.__name__, cException);
