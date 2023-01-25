@@ -60,77 +60,67 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
   
   # Send HTTP Messages
   @ShowDebugOutput
-  def fbSendRequest(oSelf, oRequest, bStartTransaction = True, n0TransactionTimeoutInSeconds = None):
+  def fbSendRequest(oSelf,
+    oRequest,
+    *,
+    n0TransactionTimeoutInSeconds = None,
+  ):
     # Attempt to write a request to the connection.
-    # Optionally start a transaction before doing so.
-    # If an exception is thrown, a transaction started here will be ended again.
-    # The connection must not be shut down for reading or an exception will be thrown.
+    # * Optionally end a transaction after attempting to send the request.
+    #   The transaction is always ended, even on an exception, except if
+    #   a transaction already exists for the connection and this function
+    #   is asked to start a new one.
+    # * The connection must be fully open (== not shut down for reading or writing
+    #   or closed). A `shutdown` or `disconnected` exception is thrown as
+    #   appropriate if this is not the case.
+    # * an `out-of-band-data` exception is thrown if there is data from the server
+    #   available on the connection.
     # return False if an optional transaction could not be started.
     # return True if the request was sent.
     # Can throw timeout, out-of-band-data, shutdown or disconnected exception.
-    if bStartTransaction:
-      oSelf.fStartTransaction(n0TransactionTimeoutInSeconds);
+    # The server should only send data in response to a request; if it sent out-of-band data we close the connection.
+    sbOutOfBandData = oSelf.fsbReadAvailableBytes();
+    if sbOutOfBandData:
+      # The request will not be send because the server sent out-of-band data.
+      oSelf.fDisconnect();
+      # This is an unexpected error by the server: raise an exception to
+      # report it.
+      raise cHTTPOutOfBandDataException(
+        "Out-of-band data was received before request was sent!",
+        o0Connection = oSelf,
+        dxDetails = {
+          "sbOutOfBandData": sbOutOfBandData
+        },
+      );
     try:
-      # The server should only send data in response to a request; if it sent out-of-band data we close the connection.
-      sbOutOfBandData = oSelf.fsbReadAvailableBytes();
-      if sbOutOfBandData:
-        # The request will not be send because the server sent out-of-band data.
-        oSelf.fDisconnect();
-        # This is an unexpected error by the server: raise an exception to
-        # report it.
-        raise cHTTPOutOfBandDataException(
-          "Out-of-band data was received before request was sent!",
-          o0Connection = oSelf,
-          dxDetails = {
-            "sbOutOfBandData": sbOutOfBandData
-          },
-        );
-      try:
-        oSelf.__fSendMessage(oRequest);
-      except cTCPIPConnectionShutdownException:
-        # The request could not be send because the connection was shut down.
-        # This is acceptable (the server no longer wanted to keep the connection
-        # open). Fully disconnect the connection, end the transaction, and then
-        # report that the request was not sent, so the caller can decide to try
-        # again on a new connection.
-        oSelf.fDisconnect();
-        oSelf.fEndTransaction();
-        return False;
-      except cTCPIPConnectionDisconnectedException:
-        # The request could not be send because the connection was closed.
-        # This is acceptable (the server no longer wanted to keep the connection
-        # open, or the network connection was reset). End the transaction and
-        # report that the request was not sent, so the caller can decide to try
-        # again on a new connection.
-        oSelf.fEndTransaction();
-        return False;
-      oSelf.fFireCallbacks("request sent", oRequest = oRequest);
-      oSelf.__o0LastSentRequest = oRequest;
-      return True;
-    except Exception as oException:
-      if bStartTransaction:
-        oSelf.fEndTransaction();
-      raise;
+      oSelf.__fSendMessage(oRequest);
+    except cTCPIPConnectionShutdownException:
+      # The request could not be send because the connection was shut down.
+      # This is acceptable (the server no longer wanted to keep the connection
+      # open). Fully disconnect the connection and report that the request
+      # was not sent, so the caller can decide to try again on a new connection.
+      oSelf.fDisconnect();
+      return False;
+    except cTCPIPConnectionDisconnectedException:
+      # The request could not be send because the connection was closed.
+      # This is acceptable (the server no longer wanted to keep the connection
+      # open, or the network connection was reset). Report that the request
+      # was not sent, so the caller can decide to try again on a new connection.
+      return False;
+    oSelf.fFireCallbacks("request sent", oRequest = oRequest);
+    oSelf.__o0LastSentRequest = oRequest;
+    return True;
   
   @ShowDebugOutput
-  def fSendResponse(oSelf, oResponse, bEndTransaction = True):
+  def fSendResponse(oSelf, oResponse):
     # Attempt to write a response to the connection.
-    # Optionally end a transaction after doing so, even if an exception is thrown.
     # Can throw timeout, shutdown or disconnected exception.
-    bSent = False;
-    try:
-      oSelf.__fSendMessage(oResponse);
-      oLastReceivedRequest = oSelf.__o0LastReceivedRequest;
-      oSelf.__o0LastReceivedRequest = None;
-      bSent = True;
-    finally:
-      if bEndTransaction:
-        oSelf.fEndTransaction();
-      # callbacks are fired AFTER the transaction has terminated (that way callbacks can use the connection)
-      if bSent:
-        oSelf.fFireCallbacks("response sent", oResponse = oResponse);
-        if oSelf.__o0LastReceivedRequest:
-          oSelf.fFireCallbacks("request received and response sent", oRequest = oLastReceivedRequest, oResponse = oResponse);
+    oSelf.__fSendMessage(oResponse);
+    oLastReceivedRequest = oSelf.__o0LastReceivedRequest;
+    oSelf.__o0LastReceivedRequest = None;
+    oSelf.fFireCallbacks("response sent", oResponse = oResponse);
+    if oSelf.__o0LastReceivedRequest:
+      oSelf.fFireCallbacks("request received and response sent", oRequest = oLastReceivedRequest, oResponse = oResponse);
   
   @ShowDebugOutput
   def __fSendMessage(oSelf, oMessage):

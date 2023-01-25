@@ -231,13 +231,13 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
   def fo0SendRequestAndReceiveResponse(oSelf,
     oRequest,
     n0zConnectTimeoutInSeconds = zNotProvided, n0zSecureTimeoutInSeconds = zNotProvided, n0zTransactionTimeoutInSeconds = zNotProvided,
-    bEndTransaction = True,
     u0zMaxStatusLineSize = zNotProvided,
     u0zMaxHeaderNameSize = zNotProvided, u0zMaxHeaderValueSize = zNotProvided, u0zMaxNumberOfHeaders = zNotProvided,
     u0zMaxBodySize = zNotProvided, u0zMaxChunkSize = zNotProvided, u0zMaxNumberOfChunks = zNotProvided,
     u0MaxNumberOfChunksBeforeDisconnecting = zNotProvided, # disconnect and return response once this many chunks are received.
   ):
-    # Send a request to the server and receive a response.
+    # Send a request to the server and receive a response. A transaction on the
+    # connection is started before and ended after this exchange.
     # An existing connection is reused if one is available. A new connection
     # if created if none is available and there are not too many connections.
     # If not specified, always check the hostname when the connection is secure.
@@ -262,7 +262,6 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
         # Returns cResponse instance if response was received.
         o0Response = o0Connection.fo0SendRequestAndReceiveResponse(
           oRequest,
-          bStartTransaction = False, # We've already don this
           u0zMaxStatusLineSize = u0zMaxStatusLineSize,
           u0zMaxHeaderNameSize = u0zMaxHeaderNameSize,
           u0zMaxHeaderValueSize = u0zMaxHeaderValueSize,
@@ -271,19 +270,13 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
           u0zMaxChunkSize = u0zMaxChunkSize,
           u0zMaxNumberOfChunks = u0zMaxNumberOfChunks,
           u0MaxNumberOfChunksBeforeDisconnecting = u0MaxNumberOfChunksBeforeDisconnecting, # disconnect and return response once this many chunks are received.
-          bEndTransaction = False, # We'll do this later
         );
         if oSelf.__bStopping:
           fShowDebugOutput("Stopping.");
           return None;
         return o0Response;
-      except:
-        # Make sure we end the transaction we started if there was an error.
-        bEndTransaction = True;
-        raise;
       finally:
-        if bEndTransaction:
-          oConnection.fEndTransaction();
+        oConnection.fEndTransaction();
   @ShowDebugOutput
   def __fo0StartTransactionOnExistingConnection(oSelf, n0zTransactionTimeoutInSeconds):
     # We need to postpone and terminate callbacks because we have a lock that
