@@ -9,10 +9,17 @@ except ModuleNotFoundError as oException:
   fShowDebugOutput = lambda x, y = None: x; # NOP
 
 from mMultiThreading import cLock, cWithCallbacks;
-from mNotProvided import *;
+from mNotProvided import \
+    fxGetFirstProvidedValue, \
+    zNotProvided;
 
 from .cHTTPConnection import cHTTPConnection;
-from .mExceptions import *;
+from .mExceptions import \
+    acExceptions, \
+    cHTTPMaxConnectionsToServerReachedException, \
+    cTCPIPConnectionCannotBeUsedConcurrentlyException, \
+    cTCPIPConnectionDisconnectedException, \
+    cTCPIPConnectionShutdownException;
 
 # To turn access to data store in multiple variables into a single transaction, we will create locks.
 # These locks should only ever be locked for a short time; if it is locked for too long, it is considered a "deadlock"
