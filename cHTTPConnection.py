@@ -60,10 +60,8 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
   
   # Send HTTP Messages
   @ShowDebugOutput
-  def fbSendRequest(oSelf,
+  def fSendRequest(oSelf,
     oRequest,
-    *,
-    n0TransactionTimeoutInSeconds = None,
   ):
     # Attempt to write a request to the connection.
     # * Optionally end a transaction after attempting to send the request.
@@ -92,21 +90,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
           "sbOutOfBandData": sbOutOfBandData
         },
       );
-    try:
-      oSelf.__fSendMessage(oRequest);
-    except cTCPIPConnectionShutdownException:
-      # The request could not be send because the connection was shut down.
-      # This is acceptable (the server no longer wanted to keep the connection
-      # open). Fully disconnect the connection and report that the request
-      # was not sent, so the caller can decide to try again on a new connection.
-      oSelf.fDisconnect();
-      return False;
-    except cTCPIPConnectionDisconnectedException:
-      # The request could not be send because the connection was closed.
-      # This is acceptable (the server no longer wanted to keep the connection
-      # open, or the network connection was reset). Report that the request
-      # was not sent, so the caller can decide to try again on a new connection.
-      return False;
+    oSelf.__fSendMessage(oRequest);
     oSelf.fFireCallbacks("request sent", oRequest = oRequest);
     oSelf.__o0LastSentRequest = oRequest;
     return True;
@@ -499,7 +483,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
     return (asbBodyChunks, False);
   
   @ShowDebugOutput
-  def fo0SendRequestAndReceiveResponse(oSelf,
+  def foSendRequestAndReceiveResponse(oSelf,
     # Send request arguments:
     oRequest,
     # Receive response arguments:
@@ -512,8 +496,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
     u0zMaxNumberOfChunks = zNotProvided,
     u0MaxNumberOfChunksBeforeDisconnecting = None,
   ):
-    if not oSelf.fbSendRequest(oRequest):
-      return None;
+    oSelf.fSendRequest(oRequest);
     return oSelf.foReceiveResponse(
       u0zMaxStatusLineSize = u0zMaxStatusLineSize,
       u0zMaxHeaderNameSize = u0zMaxHeaderNameSize,

@@ -260,7 +260,7 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
       oConnection = o0Connection;
       try:
         # Returns cResponse instance if response was received.
-        o0Response = o0Connection.fo0SendRequestAndReceiveResponse(
+        return oConnection.foSendRequestAndReceiveResponse(
           oRequest,
           u0zMaxStatusLineSize = u0zMaxStatusLineSize,
           u0zMaxHeaderNameSize = u0zMaxHeaderNameSize,
@@ -271,10 +271,6 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
           u0zMaxNumberOfChunks = u0zMaxNumberOfChunks,
           u0MaxNumberOfChunksBeforeDisconnecting = u0MaxNumberOfChunksBeforeDisconnecting, # disconnect and return response once this many chunks are received.
         );
-        if oSelf.__bStopping:
-          fShowDebugOutput("Stopping.");
-          return None;
-        return o0Response;
       finally:
         oConnection.fEndTransaction();
   @ShowDebugOutput
