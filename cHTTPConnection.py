@@ -29,6 +29,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
   u0DefaultMaxBodySize = 1000*1000*1000;
   u0DefaultMaxChunkSize = 10*1000*1000;
   u0DefaultMaxNumberOfChunks = 1000*1000;
+  bAllowOutOfBandData = True;
   # The HTTP RFC does not provide an upper limit to the maximum number of characters a chunk size can contain.
   # So, by padding a valid chunk size on the left with "0", one could theoretically create a valid chunk header that has
   # an infinite size. To prevent us accepting such an obviously invalid value, we will accept no chunk size containing
@@ -77,19 +78,20 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
     # return True if the request was sent.
     # Can throw timeout, out-of-band-data, shutdown or disconnected exception.
     # The server should only send data in response to a request; if it sent out-of-band data we close the connection.
-    sbOutOfBandData = oSelf.fsbReadAvailableBytes();
-    if sbOutOfBandData:
-      # The request will not be send because the server sent out-of-band data.
-      oSelf.fDisconnect();
-      # This is an unexpected error by the server: raise an exception to
-      # report it.
-      raise cHTTPOutOfBandDataException(
-        "Out-of-band data was received before request was sent!",
-        o0Connection = oSelf,
-        dxDetails = {
-          "sbOutOfBandData": sbOutOfBandData
-        },
-      );
+    if not oSelf.bAllowOutOfBandData:
+      sbOutOfBandData = oSelf.fsbReadAvailableBytes();
+      if sbOutOfBandData:
+        # The request will not be send because the server sent out-of-band data.
+        oSelf.fDisconnect();
+        # This is an unexpected error by the server: raise an exception to
+        # report it.
+        raise cHTTPOutOfBandDataException(
+          "Out-of-band data was received before request was sent!",
+          o0Connection = oSelf,
+          dxDetails = {
+            "sbOutOfBandData": sbOutOfBandData
+          },
+        );
     oSelf.__fSendMessage(oRequest);
     oSelf.fFireCallbacks("request sent", oRequest = oRequest);
     oSelf.__o0LastSentRequest = oRequest;
