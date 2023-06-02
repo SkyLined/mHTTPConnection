@@ -15,9 +15,7 @@ from mTCPIPConnection import cTransactionalBufferedTCPIPConnection;
 from .mExceptions import \
     acExceptions, \
     cHTTPInvalidMessageException, \
-    cHTTPOutOfBandDataException, \
-    cTCPIPConnectionDisconnectedException, \
-    cTCPIPConnectionShutdownException;
+    cHTTPOutOfBandDataException;
 
 gbDebugOutputFullHTTPMessages = False;
 
