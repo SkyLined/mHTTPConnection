@@ -26,6 +26,7 @@ from .mExceptions import \
 # bug, where "too long" is defined by the following value:
 gnDeadlockTimeoutInSeconds = 1; # We're not doing anything time consuming, so this should suffice.
 gu0DefaultMaxNumberOfConnectionsToServer = 10;
+gn0DefaultConnectionTransactionTimeoutInSeconds = 10;
 
 class cHTTPConnectionsToServerPool(cWithCallbacks):
   @ShowDebugOutput
@@ -208,7 +209,9 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
     n0EndTime = (time.time() + n0zConnectTimeoutInSeconds) if n0zConnectTimeoutInSeconds is not None else None;
     while not oSelf.__bStopping:
       # Existing idle connections may be used:
-      o0Connection = oSelf.__fo0StartTransactionOnExistingConnection(n0zTransactionTimeoutInSeconds);
+      o0Connection = oSelf.__fo0StartTransactionOnExistingConnection(
+        n0zTransactionTimeoutInSeconds,
+      );
       if o0Connection is not None:
         return o0Connection;
       if oSelf.__bStopping:
@@ -230,10 +233,16 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
   @ShowDebugOutput
   def fo0SendRequestAndReceiveResponse(oSelf,
     oRequest,
-    n0zConnectTimeoutInSeconds = zNotProvided, n0zSecureTimeoutInSeconds = zNotProvided, n0zTransactionTimeoutInSeconds = zNotProvided,
+    n0zConnectTimeoutInSeconds = zNotProvided,
+    n0zSecureTimeoutInSeconds = zNotProvided,
+    n0zTransactionTimeoutInSeconds = zNotProvided,
     u0zMaxStatusLineSize = zNotProvided,
-    u0zMaxHeaderNameSize = zNotProvided, u0zMaxHeaderValueSize = zNotProvided, u0zMaxNumberOfHeaders = zNotProvided,
-    u0zMaxBodySize = zNotProvided, u0zMaxChunkSize = zNotProvided, u0zMaxNumberOfChunks = zNotProvided,
+    u0zMaxHeaderNameSize = zNotProvided,
+    u0zMaxHeaderValueSize = zNotProvided,
+    u0zMaxNumberOfHeaders = zNotProvided,
+    u0zMaxBodySize = zNotProvided,
+    u0zMaxChunkSize = zNotProvided,
+    u0zMaxNumberOfChunks = zNotProvided,
     u0MaxNumberOfChunksBeforeDisconnecting = zNotProvided, # disconnect and return response once this many chunks are received.
   ):
     # Send a request to the server and receive a response. A transaction on the
@@ -274,7 +283,9 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
       finally:
         oConnection.fEndTransaction();
   @ShowDebugOutput
-  def __fo0StartTransactionOnExistingConnection(oSelf, n0zTransactionTimeoutInSeconds):
+  def __fo0StartTransactionOnExistingConnection(oSelf,
+    n0zTransactionTimeoutInSeconds,
+  ):
     # We need to postpone and terminate callbacks because we have a lock that
     # these callbacks also want. If we do not postpone them, there will be a
     # deadlock.
@@ -289,7 +300,9 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
         oConnection.fPostponeTerminatedCallback();
         aoConnectionsWithPotentiallyPostponedTerminatedCallbacks.append(oConnection);
         try: # Try to start a transaction; this will only succeed on an idle connection.
-          oConnection.fStartTransaction(n0zTransactionTimeoutInSeconds);
+          oConnection.fStartTransaction(
+            n0TimeoutInSeconds = fxGetFirstProvidedValue(n0zTransactionTimeoutInSeconds, gn0DefaultConnectionTransactionTimeoutInSeconds),
+          );
         except cTCPIPConnectionCannotBeUsedConcurrentlyException:
           fShowDebugOutput(oSelf, "Connection is in use.");
         except cTCPIPConnectionShutdownException:
@@ -321,7 +334,7 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
         oSelf.__u0MaxNumberOfConnectionsToServer is not None
         and len(oSelf.__aoConnections) + oSelf.__uPendingConnects == oSelf.__u0MaxNumberOfConnectionsToServer
       ):
-       raise cHTTPMaxConnectionsToServerReachedException(
+        raise cHTTPMaxConnectionsToServerReachedException(
           "Maximum number of connections to server reached.",
           dxDetails = {
             "bServerIsAProxy": False,
@@ -388,7 +401,9 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
       );
       raise;
     # Start a transaction to prevent other threads from using it:
-    oConnection.fStartTransaction(n0zTransactionTimeoutInSeconds);
+    oConnection.fStartTransaction(
+      n0TimeoutInSeconds = fxGetFirstProvidedValue(n0zTransactionTimeoutInSeconds, gn0DefaultConnectionTransactionTimeoutInSeconds),
+    );
     # Add some event handlers
     # remove a pending connection and add the connection we created.
     oSelf.__oConnectionsPropertyLock.fAcquire();
