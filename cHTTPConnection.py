@@ -96,7 +96,9 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
     return True;
   
   @ShowDebugOutput
-  def fSendResponse(oSelf, oResponse):
+  def fSendResponse(oSelf,
+    oResponse,
+  ):
     # Attempt to write a response to the connection.
     # Can throw timeout, shutdown or disconnected exception.
     oSelf.__fSendMessage(oResponse);
@@ -107,7 +109,9 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
       oSelf.fFireCallbacks("request received and response sent", oRequest = oLastReceivedRequest, oResponse = oResponse);
   
   @ShowDebugOutput
-  def __fSendMessage(oSelf, oMessage):
+  def __fSendMessage(oSelf,
+    oMessage,
+  ):
     # Serialize and send the cHTTPMessage instance.
     # Optionally close the connection if the message indicates this, even if an exception is thrown
     # Can throw timeout, shutdown or disconnected exception.
@@ -129,8 +133,12 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
   @ShowDebugOutput
   def foReceiveRequest(oSelf,
     u0zMaxStatusLineSize = zNotProvided,
-    u0zMaxHeaderNameSize = zNotProvided, u0zMaxHeaderValueSize = zNotProvided, u0zMaxNumberOfHeaders = zNotProvided,
-    u0zMaxBodySize = zNotProvided, u0zMaxChunkSize = zNotProvided, u0zMaxNumberOfChunks = zNotProvided, # throw exception if more than this many chunks are received
+    u0zMaxHeaderNameSize = zNotProvided,
+    u0zMaxHeaderValueSize = zNotProvided,
+    u0zMaxNumberOfHeaders = zNotProvided,
+    u0zMaxBodySize = zNotProvided,
+    u0zMaxChunkSize = zNotProvided,
+    u0zMaxNumberOfChunks = zNotProvided, # throw exception if more than this many chunks are received
     bStrictErrorChecking = True,
   ):
     # Attempt to receive a request from the connection.
@@ -156,8 +164,12 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
   @ShowDebugOutput
   def foReceiveResponse(oSelf,
     u0zMaxStatusLineSize = None,
-    u0zMaxHeaderNameSize = None, u0zMaxHeaderValueSize = None, u0zMaxNumberOfHeaders = None,
-    u0zMaxBodySize = None, u0zMaxChunkSize = None, u0zMaxNumberOfChunks = None, # throw exception if more than this many chunks are received
+    u0zMaxHeaderNameSize = None,
+    u0zMaxHeaderValueSize = None,
+    u0zMaxNumberOfHeaders = None,
+    u0zMaxBodySize = None,
+    u0zMaxChunkSize = None,
+    u0zMaxNumberOfChunks = None, # throw exception if more than this many chunks are received
     u0MaxNumberOfChunksBeforeDisconnecting = None, # disconnect and return response once this many chunks are received.
     bStrictErrorChecking = True,
   ):
