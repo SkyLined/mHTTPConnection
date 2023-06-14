@@ -11,6 +11,7 @@ except ModuleNotFoundError as oException:
 from mMultiThreading import cLock, cWithCallbacks;
 from mNotProvided import \
     fxGetFirstProvidedValue, \
+    fxzGetFirstProvidedValueIfAny, \
     zNotProvided;
 
 from .cHTTPConnection import cHTTPConnection;
@@ -33,11 +34,13 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
   def __init__(oSelf,
     oServerBaseURL,
     u0zMaxNumberOfConnectionsToServer = zNotProvided,
-    o0SSLContext = None
+    o0SSLContext = None,
+    bzCheckHostname = zNotProvided,
   ):
     oSelf.__oServerBaseURL = oServerBaseURL;
     oSelf.__u0MaxNumberOfConnectionsToServer = fxGetFirstProvidedValue(u0zMaxNumberOfConnectionsToServer, gu0DefaultMaxNumberOfConnectionsToServer);
     oSelf.__o0SSLContext = o0SSLContext;
+    oSelf.__bzCheckHostname = bzCheckHostname;
     
     oSelf.__oConnectionsPropertyLock = cLock(
       "%s.__oConnectionsPropertyLock" % oSelf.__class__.__name__,
@@ -145,7 +148,7 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
     # We are stopping. New connections will no longer be created.
     # Existing connections should all be stopping:
     for oConnection in aoConnectionsThatAreNotStopping:
-        oConnection.fStop();
+      oConnection.fStop();
     # Check if we have already terminated, or if some connections are still stopping.
     oSelf.__fReportTerminatedIfNoMoreConnectionsExist();
   
@@ -169,8 +172,10 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
   
   def fo0GetConnectionAndStartTransaction(
     oSelf,
+    *,
     n0zConnectTimeoutInSeconds = zNotProvided,
-    bDoNotUseSLL = False,
+    bSecureConnection = True,
+    bzCheckHostname = zNotProvided,
     n0zSecureTimeoutInSeconds = zNotProvided,
     n0zTransactionTimeoutInSeconds = zNotProvided,
   ):
@@ -180,7 +185,8 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
     # the connection.
     o0Connection = oSelf.__fo0GetConnectionAndStartTransaction(
       n0zConnectTimeoutInSeconds,
-      bDoNotUseSLL,
+      bSecureConnection,
+      bzCheckHostname,
       n0zSecureTimeoutInSeconds,
       n0zTransactionTimeoutInSeconds,
     );
@@ -199,7 +205,8 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
   def __fo0GetConnectionAndStartTransaction(
     oSelf,
     n0zConnectTimeoutInSeconds,
-    bDoNotUseSLL,
+    bSecureConnection,
+    bzCheckHostname,
     n0zSecureTimeoutInSeconds,
     n0zTransactionTimeoutInSeconds,
   ):
@@ -221,7 +228,8 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
       try:
         return oSelf.__foCreateNewConnectionAndStartTransaction(
           n0zConnectTimeoutInSeconds,
-          bDoNotUseSLL,
+          bSecureConnection,
+          bzCheckHostname,
           n0zSecureTimeoutInSeconds,
           n0zTransactionTimeoutInSeconds,
         );
@@ -258,7 +266,8 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
         return None;
       o0Connection = oSelf.__fo0GetConnectionAndStartTransaction(
         n0zConnectTimeoutInSeconds = n0zConnectTimeoutInSeconds,
-        bDoNotUseSLL = False,
+        bSecureConnection = True,
+        bzCheckHostname = oSelf.__bzCheckHostname,
         n0zSecureTimeoutInSeconds = n0zSecureTimeoutInSeconds,
         n0zTransactionTimeoutInSeconds = n0zTransactionTimeoutInSeconds,
       );
@@ -322,9 +331,10 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
   @ShowDebugOutput
   def __foCreateNewConnectionAndStartTransaction(oSelf,
     n0zConnectTimeoutInSeconds,
-    bDoNotUseSLL,
+    bSecureConnection,
+    bzCheckHostname,
     n0zSecureTimeoutInSeconds,
-    n0zTransactionTimeoutInSeconds
+    n0zTransactionTimeoutInSeconds,
   ):
     # Make sure we would not create too many connections and add a pending connection:
     # Can throw a max-connections-reached exception
@@ -351,7 +361,8 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
         sbHostnameOrIPAddress = oSelf.__oServerBaseURL.sbHostname,
         uPortNumber = oSelf.__oServerBaseURL.uPortNumber,
         n0zConnectTimeoutInSeconds = n0zConnectTimeoutInSeconds,
-        o0SSLContext = None if bDoNotUseSLL else oSelf.__o0SSLContext,
+        o0SSLContext = oSelf.__o0SSLContext if bSecureConnection else None,
+        bzCheckHostname = fxzGetFirstProvidedValueIfAny(bzCheckHostname, oSelf.__bzCheckHostname),
         n0zSecureTimeoutInSeconds = n0zSecureTimeoutInSeconds,
         f0HostnameOrIPAddressInvalidCallback = lambda sbHostnameOrIPAddress: oSelf.fFireCallbacks(
           "server hostname or ip address invalid",
