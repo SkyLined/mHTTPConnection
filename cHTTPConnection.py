@@ -6,6 +6,8 @@ except ModuleNotFoundError as oException:
   ShowDebugOutput = lambda fx: fx; # NOP
   fShowDebugOutput = lambda x, s0 = None: x; # NOP
 
+from mNotProvided import fbIsProvided;
+
 from mHTTPProtocol import cHTTPRequest, cHTTPResponse, cURL;
 from mNotProvided import \
   fxGetFirstProvidedValue, \
@@ -14,8 +16,7 @@ from mTCPIPConnection import cTransactionalBufferedTCPIPConnection;
 
 from .mExceptions import \
     acExceptions, \
-    cHTTPInvalidMessageException, \
-    cHTTPOutOfBandDataException;
+    cHTTPInvalidMessageException;
 
 gbDebugOutputFullHTTPMessages = False;
 
@@ -27,7 +28,6 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
   u0DefaultMaxBodySize = 1000*1000*1000;
   u0DefaultMaxChunkSize = 10*1000*1000;
   u0DefaultMaxNumberOfChunks = 1000*1000;
-  bAllowOutOfBandData = True;
   # The HTTP RFC does not provide an upper limit to the maximum number of characters a chunk size can contain.
   # So, by padding a valid chunk size on the left with "0", one could theoretically create a valid chunk header that has
   # an infinite size. To prevent us accepting such an obviously invalid value, we will accept no chunk size containing
@@ -70,26 +70,9 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
     # * The connection must be fully open (== not shut down for reading or writing
     #   or closed). A `shutdown` or `disconnected` exception is thrown as
     #   appropriate if this is not the case.
-    # * an `out-of-band-data` exception is thrown if there is data from the server
-    #   available on the connection.
     # return False if an optional transaction could not be started.
     # return True if the request was sent.
-    # Can throw timeout, out-of-band-data, shutdown or disconnected exception.
-    # The server should only send data in response to a request; if it sent out-of-band data we close the connection.
-    if not oSelf.bAllowOutOfBandData:
-      sbOutOfBandData = oSelf.fsbReadAvailableBytes();
-      if sbOutOfBandData:
-        # The request will not be send because the server sent out-of-band data.
-        oSelf.fDisconnect();
-        # This is an unexpected error by the server: raise an exception to
-        # report it.
-        raise cHTTPOutOfBandDataException(
-          "Out-of-band data was received before request was sent!",
-          o0Connection = oSelf,
-          dxDetails = {
-            "sbOutOfBandData": sbOutOfBandData
-          },
-        );
+    # Can throw timeout, shutdown or disconnected exception.
     oSelf.__fSendMessage(oRequest);
     oSelf.fFireCallbacks("request sent", oRequest = oRequest);
     oSelf.__o0LastSentRequest = oRequest;
