@@ -33,6 +33,7 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
   @ShowDebugOutput
   def __init__(oSelf,
     oServerBaseURL,
+    *,
     u0zMaxNumberOfConnectionsToServer = zNotProvided,
     o0SSLContext = None,
     bzCheckHostname = zNotProvided,
@@ -355,7 +356,6 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
     finally:
       oSelf.__oConnectionsPropertyLock.fRelease();
     # Try to establish a connection:
-    o0Connection = None;
     try:
       oConnection = cHTTPConnection.foConnectTo(
         sbHostnameOrIPAddress = oSelf.__oServerBaseURL.sbHostname,
