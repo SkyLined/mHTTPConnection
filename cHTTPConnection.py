@@ -96,7 +96,6 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
     oMessage,
   ):
     # Serialize and send the cHTTPMessage instance.
-    # Optionally close the connection if the message indicates this, even if an exception is thrown
     # Can throw timeout, shutdown or disconnected exception.
     sbMessage = oMessage.fsbSerialize();
     try:
@@ -108,9 +107,6 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
       if gbDebugOutputFullHTTPMessages:
         fShowDebugOutput(str(sbMessage, 'latin1'));
       oSelf.fFireCallbacks("message sent", oMessage);
-    finally:
-      if oMessage.bCloseConnection:
-        oSelf.fShutdownForWriting();
   
   # Read HTTP Messages
   @ShowDebugOutput
@@ -294,10 +290,6 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
       fShowDebugOutput("%s received from %s." % (oMessage, oSelf));
       if gbDebugOutputFullHTTPMessages:
         fShowDebugOutput(str(oMessage.fsbSerialize(), 'latin1'));
-      
-      if oMessage.bCloseConnection:
-        fShowDebugOutput("Closing connection per message headers...");
-        oSelf.fDisconnect();
       
       oSelf.fFireCallbacks("message received", oMessage);
       
