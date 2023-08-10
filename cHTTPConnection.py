@@ -6,8 +6,6 @@ except ModuleNotFoundError as oException:
   ShowDebugOutput = lambda fx: fx; # NOP
   fShowDebugOutput = lambda x, s0 = None: x; # NOP
 
-from mNotProvided import fbIsProvided;
-
 from mHTTPProtocol import cHTTPRequest, cHTTPResponse, cURL;
 from mNotProvided import \
   fxGetFirstProvidedValue, \
