@@ -53,7 +53,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
   
   def foGetURLForRemoteServer(oSelf):
     # Calling this only makes sense from a client on a connection to a server.
-    return cURL(b"https" if oSelf.bSecure else b"http", oSelf.sbRemoteHostname, oSelf.uRemotePortNumber);
+    return cURL(b"https" if oSelf.bSecure else b"http", oSelf.sbRemoteHost, oSelf.uRemotePortNumber);
   
   # Send HTTP Messages
   @ShowDebugOutput
