@@ -389,12 +389,6 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
             o0Connection = oSelf,
             dxDetails = {"uContentLengthHeaderValue": uContentLengthHeaderValue, "uMinimumNumberOfBodyChunksBytes": uMinimumNumberOfBodyChunksBytes},
           );
-        if (
-          u0MaxNumberOfBytesInBodyRemaining is not None
-          and u0MaxChunkHeaderLineSize is not None
-          and u0MaxNumberOfBytesInBodyRemaining < u0MaxChunkHeaderLineSize
-        ):
-          u0MaxChunkHeaderLineSize = u0MaxNumberOfBytesInBodyRemaining;
       sb0ChunkHeaderLineCRLF = oSelf.fsb0ReadUntilMarker(b"\r\n", u0MaxNumberOfBytes = u0MaxChunkHeaderLineSize);
       if sb0ChunkHeaderLineCRLF is None:
         sbChunkHeaderLine = oSelf.fsbReadBufferedData();
