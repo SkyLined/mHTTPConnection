@@ -30,4 +30,3 @@ token
 tokenize
 traceback
 urllib
-warnings
