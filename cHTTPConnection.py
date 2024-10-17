@@ -83,11 +83,10 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
     # Attempt to write a response to the connection.
     # Can throw timeout, shutdown or disconnected exception.
     oSelf.__fSendMessage(oResponse);
-    oLastReceivedRequest = oSelf.__o0LastReceivedRequest;
-    oSelf.__o0LastReceivedRequest = None;
     oSelf.fFireCallbacks("response sent", oResponse = oResponse);
     if oSelf.__o0LastReceivedRequest:
-      oSelf.fFireCallbacks("request received and response sent", oRequest = oLastReceivedRequest, oResponse = oResponse);
+      oSelf.fFireCallbacks("request received and response sent", oRequest = oSelf.__o0LastReceivedRequest, oResponse = oResponse);
+      oSelf.__o0LastReceivedRequest = None;
   
   @ShowDebugOutput
   def __fSendMessage(oSelf,
