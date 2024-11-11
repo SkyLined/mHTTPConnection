@@ -46,9 +46,18 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
   def __init__(oSelf, *txArguments, **dxArguments):
     super(cHTTPConnection, oSelf).__init__(*txArguments, **dxArguments);
     oSelf.fAddEvents(
-      "message sent", "message received", 
-      "request sent", "response received", "request sent and response received",
-      "request received", "response sent", "request received and response sent",
+      "sending message", "message sent",
+      "receiving message", "message received", 
+      
+      "sending request", "request sent",
+      "receiving request", "request received",
+      
+      "sending response", "response sent",
+      "receiving response", "response received",
+      
+      "request sent and receiving response", "request sent and response received",
+      
+      "request received and sending response", "request received and response sent",
     );
   
   def foGetURLForRemoteServer(oSelf):
@@ -71,6 +80,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
     # return False if an optional transaction could not be started.
     # return True if the request was sent.
     # Can throw timeout, shutdown or disconnected exception.
+    oSelf.fFireCallbacks("sending request", oRequest = oRequest);
     oSelf.__fSendMessage(oRequest);
     oSelf.fFireCallbacks("request sent", oRequest = oRequest);
     oSelf.__o0LastSentRequest = oRequest;
@@ -80,6 +90,8 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
   def fSendResponse(oSelf,
     oResponse,
   ):
+    oSelf.fFireCallbacks("sending response", oResponse = oResponse);
+    oSelf.fFireCallbacks("request received and sending response", oRequest = oSelf.__o0LastReceivedRequest, oResponse = oResponse);
     # Attempt to write a response to the connection.
     # Can throw timeout, shutdown or disconnected exception.
     oSelf.__fSendMessage(oResponse);
@@ -94,6 +106,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
   ):
     # Serialize and send the cHTTPMessage instance.
     # Can throw timeout, shutdown or disconnected exception.
+    oSelf.fFireCallbacks("sending message", oMessage);
     sbMessage = oMessage.fsbSerialize();
     try:
       oSelf.fWriteBytes(sbMessage);
@@ -117,6 +130,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
     u0zMaxNumberOfChunks = zNotProvided, # throw exception if more than this many chunks are received
     bStrictErrorChecking = True,
   ):
+    oSelf.fFireCallbacks("receiving request");
     # Attempt to receive a request from the connection.
     # If an exception is thrown, a transaction started here will be ended again.
     # Return None if an optional transaction could not be started.
@@ -149,6 +163,8 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
     u0MaxNumberOfChunksBeforeDisconnecting = None, # disconnect and return response once this many chunks are received.
     bStrictErrorChecking = True,
   ):
+    oSelf.fFireCallbacks("receiving response");
+    oSelf.fFireCallbacks("request sent and receiving response", oRequest = oSelf.__o0LastSentRequest);
     # Attempt to receive a response from the connection.
     # Optionally end a transaction after doing so, even if an exception is thrown.
     # Returns a cHTTPResponse object.
@@ -182,6 +198,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
     u0MaxNumberOfChunksBeforeDisconnecting,
     bStrictErrorChecking,
   ):
+    oSelf.fFireCallbacks("receiving message");
     # Read and parse a HTTP message.
     # Returns a cHTTPMessage instance.
     # Can throw timeout, shutdown or disconnected exception.
