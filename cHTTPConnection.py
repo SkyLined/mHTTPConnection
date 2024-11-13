@@ -46,18 +46,29 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
   def __init__(oSelf, *txArguments, **dxArguments):
     super(cHTTPConnection, oSelf).__init__(*txArguments, **dxArguments);
     oSelf.fAddEvents(
-      "sending message", "message sent",
-      "receiving message", "message received", 
+      "sending message",
+      "sending message failed",
+      "sent message",
       
-      "sending request", "request sent",
-      "receiving request", "request received",
+      "receiving message",
+      "receiving message failed",
+      "received message", 
       
-      "sending response", "response sent",
-      "receiving response", "response received",
+      "receiving request from client",
+      "receiving request from client failed",
+      "received request from client",
       
-      "request sent and receiving response", "request sent and response received",
+      "sending request to server",
+      "sending request to server failed",
+      "sent request to server",
       
-      "request received and sending response", "request received and response sent",
+      "receiving response from server",
+      "receiving response from server failed",
+      "received response from server",
+      
+      "sending response to client",
+      "sending response to client failed",
+      "sent response to client",
     );
   
   def foGetURLForRemoteServer(oSelf):
@@ -80,25 +91,35 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
     # return False if an optional transaction could not be started.
     # return True if the request was sent.
     # Can throw timeout, shutdown or disconnected exception.
-    oSelf.fFireCallbacks("sending request", oRequest = oRequest);
-    oSelf.__fSendMessage(oRequest);
-    oSelf.fFireCallbacks("request sent", oRequest = oRequest);
+    oSelf.fFireCallbacks("sending request to server", oRequest = oRequest);
+    try:
+      oSelf.__fSendMessage(oRequest);
+    except Exception as oException:
+      oSelf.__o0LastSentRequest = None;
+      oSelf.fFireCallbacks("sending request to server failed", oRequest = oRequest, oException = oException);
+      oSelf.fTerminate();
+      raise;
     oSelf.__o0LastSentRequest = oRequest;
+    oSelf.fFireCallbacks( "sent request to server", oRequest = oRequest);
     return True;
   
   @ShowDebugOutput
   def fSendResponse(oSelf,
     oResponse,
   ):
-    oSelf.fFireCallbacks("sending response", oResponse = oResponse);
-    oSelf.fFireCallbacks("request received and sending response", oRequest = oSelf.__o0LastReceivedRequest, oResponse = oResponse);
+    o0Request = oSelf.__o0LastReceivedRequest;
+    oSelf.fFireCallbacks("sending response to client", o0Request = o0Request, oResponse = oResponse);
     # Attempt to write a response to the connection.
     # Can throw timeout, shutdown or disconnected exception.
-    oSelf.__fSendMessage(oResponse);
-    oSelf.fFireCallbacks("response sent", oResponse = oResponse);
-    if oSelf.__o0LastReceivedRequest:
-      oSelf.fFireCallbacks("request received and response sent", oRequest = oSelf.__o0LastReceivedRequest, oResponse = oResponse);
+    try:
+      oSelf.__fSendMessage(oResponse);
+    except Exception as oException:
       oSelf.__o0LastReceivedRequest = None;
+      oSelf.fFireCallbacks("sending response to client failed", o0Request = o0Request, oResponse = oResponse, oException = oException);
+      oSelf.fTerminate();
+      raise;
+    oSelf.__o0LastReceivedRequest = None;
+    oSelf.fFireCallbacks("sent response to client", o0Request = o0Request, oResponse = oResponse);
   
   @ShowDebugOutput
   def __fSendMessage(oSelf,
@@ -106,17 +127,18 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
   ):
     # Serialize and send the cHTTPMessage instance.
     # Can throw timeout, shutdown or disconnected exception.
-    oSelf.fFireCallbacks("sending message", oMessage);
+    oSelf.fFireCallbacks("sending message", oMessage = oMessage);
     sbMessage = oMessage.fsbSerialize();
     try:
       oSelf.fWriteBytes(sbMessage);
-    except:
+    except Exception as oException:
+      oSelf.fFireCallbacks("sending message failed", oException = oException, oMessage = oMessage);
       raise;
     else:
       fShowDebugOutput("%s sent to %s." % (oMessage, oSelf));
       if gbDebugOutputFullHTTPMessages:
         fShowDebugOutput(str(sbMessage, 'latin1'));
-      oSelf.fFireCallbacks("message sent", oMessage);
+      oSelf.fFireCallbacks("sent message", oMessage = oMessage);
   
   # Read HTTP Messages
   @ShowDebugOutput
@@ -130,7 +152,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
     u0zMaxNumberOfChunks = zNotProvided, # throw exception if more than this many chunks are received
     bStrictErrorChecking = True,
   ):
-    oSelf.fFireCallbacks("receiving request");
+    oSelf.fFireCallbacks("receiving request from client");
     # Attempt to receive a request from the connection.
     # If an exception is thrown, a transaction started here will be ended again.
     # Return None if an optional transaction could not be started.
@@ -145,12 +167,17 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
         u0zMaxBodySize = u0zMaxBodySize, u0zMaxChunkSize = u0zMaxChunkSize, u0zMaxNumberOfChunks = u0zMaxNumberOfChunks,
         u0MaxNumberOfChunksBeforeDisconnecting = None,
         bStrictErrorChecking = bStrictErrorChecking,
+        bDoesNotActuallyHaveABody = False, # Only for response to HEAD request
       );
-      oSelf.fFireCallbacks("request received", oRequest = oRequest);
-      oSelf.__o0LastReceivedRequest = oRequest;
-      return oRequest;
     except Exception as oException:
+      oSelf.__o0LastReceivedRequest = None;
+      oSelf.fFireCallbacks("receiving request from client failed", oException = oException);
+      oSelf.fTerminate();
       raise;
+    oSelf.__o0LastReceivedRequest = oRequest;
+    oSelf.fFireCallbacks("received request from client", oRequest = oRequest);
+    return oRequest;
+
   @ShowDebugOutput
   def foReceiveResponse(oSelf,
     u0zMaxStatusLineSize = None,
@@ -163,26 +190,32 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
     u0MaxNumberOfChunksBeforeDisconnecting = None, # disconnect and return response once this many chunks are received.
     bStrictErrorChecking = True,
   ):
-    oSelf.fFireCallbacks("receiving response");
-    oSelf.fFireCallbacks("request sent and receiving response", oRequest = oSelf.__o0LastSentRequest);
     # Attempt to receive a response from the connection.
     # Optionally end a transaction after doing so, even if an exception is thrown.
     # Returns a cHTTPResponse object.
     # Can throw timeout, shutdown or disconnected exception.
     assert oSelf.bInTransaction, \
         "A transaction must be started before a response can be received over this connection.";
-    oResponse = oSelf.__foReceiveMessage(
-      # it's not ok if a connection is dropped by a server before a response is received, so the above cannot return None.
-      cHTTPResponse, 
-      u0zMaxStatusLineSize = u0zMaxStatusLineSize,
-      u0zMaxHeaderNameSize = u0zMaxHeaderNameSize, u0zMaxHeaderValueSize = u0zMaxHeaderValueSize, u0zMaxNumberOfHeaders = u0zMaxNumberOfHeaders,
-      u0zMaxBodySize = u0zMaxBodySize, u0zMaxChunkSize = u0zMaxChunkSize, u0zMaxNumberOfChunks = u0zMaxNumberOfChunks,
-      u0MaxNumberOfChunksBeforeDisconnecting = u0MaxNumberOfChunksBeforeDisconnecting,
-      bStrictErrorChecking = bStrictErrorChecking,
-    );
-    oSelf.fFireCallbacks("response received", oResponse = oResponse);
-    oSelf.fFireCallbacks("request sent and response received", oRequest = oSelf.__o0LastSentRequest, oResponse = oResponse);
+    o0Request = oSelf.__o0LastSentRequest;
+    oSelf.fFireCallbacks("receiving response from server", o0Request = o0Request);
+    try:
+      oResponse = oSelf.__foReceiveMessage(
+        # it's not ok if a connection is dropped by a server before a response is received, so the above cannot return None.
+        cHTTPResponse, 
+        u0zMaxStatusLineSize = u0zMaxStatusLineSize,
+        u0zMaxHeaderNameSize = u0zMaxHeaderNameSize, u0zMaxHeaderValueSize = u0zMaxHeaderValueSize, u0zMaxNumberOfHeaders = u0zMaxNumberOfHeaders,
+        u0zMaxBodySize = u0zMaxBodySize, u0zMaxChunkSize = u0zMaxChunkSize, u0zMaxNumberOfChunks = u0zMaxNumberOfChunks,
+        u0MaxNumberOfChunksBeforeDisconnecting = u0MaxNumberOfChunksBeforeDisconnecting,
+        bStrictErrorChecking = bStrictErrorChecking,
+        bDoesNotActuallyHaveABody = o0Request and o0Request.sbMethod == b"HEAD", # Only for response to HEAD request
+      );
+    except Exception as oException:
+      oSelf.__o0LastSentRequest = None;
+      oSelf.fFireCallbacks("receiving response from server failed", o0Request = o0Request, oException = oException);
+      oSelf.fTerminate();
+      raise;
     oSelf.__o0LastSentRequest = None;
+    oSelf.fFireCallbacks("received response from server", o0Request = o0Request, oResponse = oResponse);
     return oResponse;
   
   @ShowDebugOutput
@@ -197,8 +230,8 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
     u0zMaxNumberOfChunks,
     u0MaxNumberOfChunksBeforeDisconnecting,
     bStrictErrorChecking,
+    bDoesNotActuallyHaveABody,
   ):
-    oSelf.fFireCallbacks("receiving message");
     # Read and parse a HTTP message.
     # Returns a cHTTPMessage instance.
     # Can throw timeout, shutdown or disconnected exception.
@@ -209,6 +242,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
     u0MaxBodySize        = fxGetFirstProvidedValue(u0zMaxBodySize,         oSelf.u0DefaultMaxBodySize);
     u0MaxChunkSize       = fxGetFirstProvidedValue(u0zMaxChunkSize,        oSelf.u0DefaultMaxChunkSize);
     u0MaxNumberOfChunks  = fxGetFirstProvidedValue(u0zMaxNumberOfChunks,   oSelf.u0DefaultMaxNumberOfChunks);
+    oSelf.fFireCallbacks("receiving message");
     try:
       # Read and parse status line
       dxConstructorStatusLineArguments = oSelf.__fdxReadAndParseStatusLine(
@@ -234,64 +268,67 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
       a0sbBodyChunks = None;
       o0AdditionalHeaders = None;
       
-      # Parse Content-Length header value if any
-      if o0ContentLengthHeader is None:
-        u0ContentLengthHeaderValue = None;
-      else:
-        try:
-          u0ContentLengthHeaderValue = int(o0ContentLengthHeader.sbValue);
-          if u0ContentLengthHeaderValue < 0:
-            raise ValueError("Content-Length value %s results in content length %s!?" % (o0ContentLengthHeader.sbValue, u0ContentLengthHeaderValue));
-        except ValueError:
-          raise cHTTPInvalidMessageException(
-            "The Content-Length header was invalid.",
-            o0Connection = oSelf,
-            dxDetails = {"sbContentLengthHeaderValue": o0ContentLengthHeader.sbValue},
-          );
-        if u0MaxBodySize is not None and u0ContentLengthHeaderValue > u0MaxBodySize:
-          raise cHTTPInvalidMessageException(
-            "The Content-Length header was too large.",
-            o0Connection = oSelf,
-            dxDetails = {"uContentLengthHeaderValue": u0ContentLengthHeaderValue, "uMaxBodySize": u0MaxBodySize},
-          );
+      if not bDoesNotActuallyHaveABody:
+        # Parse Content-Length header value if any
+        if o0ContentLengthHeader is None:
+          u0ContentLengthHeaderValue = None;
+        else:
+          try:
+            u0ContentLengthHeaderValue = int(o0ContentLengthHeader.sbValue);
+            if u0ContentLengthHeaderValue < 0:
+              raise ValueError("Content-Length value %s results in content length %s!?" % (o0ContentLengthHeader.sbValue, u0ContentLengthHeaderValue));
+          except ValueError:
+            raise cHTTPInvalidMessageException(
+              "The Content-Length header was invalid.",
+              o0Connection = oSelf,
+              dxDetails = {"sbContentLengthHeaderValue": o0ContentLengthHeader.sbValue},
+            );
+          if u0MaxBodySize is not None and u0ContentLengthHeaderValue > u0MaxBodySize:
+            raise cHTTPInvalidMessageException(
+              "The Content-Length header was too large.",
+              o0Connection = oSelf,
+              dxDetails = {"uContentLengthHeaderValue": u0ContentLengthHeaderValue, "uMaxBodySize": u0MaxBodySize},
+            );
       
-      # Read and decode/decompress body
-      if bTransferEncodingChunkedHeaderPresent:
-        # Having both Content-Length and Transfer-Encoding: chunked headers is really weird but AFAICT not illegal.
-        a0sbBodyChunks, bDisconnected = oSelf.__fxReadAndParseBodyChunks(
-          cHTTPMessage,
-          u0MaxBodySize,
-          u0MaxChunkSize,
-          u0MaxNumberOfChunks,
-          u0MaxNumberOfChunksBeforeDisconnecting,
-          u0ContentLengthHeaderValue,
-        );
-        if not bDisconnected:
-          # More "headers" may follow.
-          o0AdditionalHeaders = oSelf.__fo0ReadAndParseHeaders(
+        # Read and decode/decompress body
+        if bTransferEncodingChunkedHeaderPresent:
+          # Having both Content-Length and Transfer-Encoding: chunked headers is really weird but AFAICT not illegal.
+          a0sbBodyChunks, bDisconnected = oSelf.__fxReadAndParseBodyChunks(
             cHTTPMessage,
-            u0MaxHeaderNameSize,
-            u0MaxHeaderValueSize,
-            u0MaxNumberOfHeaders,
-            bStrictErrorChecking,
+            u0MaxBodySize,
+            u0MaxChunkSize,
+            u0MaxNumberOfChunks,
+            u0MaxNumberOfChunksBeforeDisconnecting,
+            u0ContentLengthHeaderValue,
           );
-          if o0AdditionalHeaders:
-            for sbIllegalHeaderName in [b"Transfer-Encoding", b"Content-Length"]:
-              o0IllegalHeader = o0AdditionalHeaders.fo0GetUniqueHeaderForName(sbIllegalHeaderName);
-              if o0IllegalHeader is not None:
-                raise cHTTPInvalidMessageException(
-                  "The message was not valid because it contained a %s header after the chunked body." % sbIllegalHeaderName,
-                  o0Connection = oSelf,
-                  dxDetails = {"oIllegalHeader": o0IllegalHeader},
-                );
-      elif u0ContentLengthHeaderValue is not None:
-        fShowDebugOutput("Reading %d bytes response body..." % u0ContentLengthHeaderValue);
-        sb0Body = oSelf.fsbReadBytes(u0ContentLengthHeaderValue);
-      elif bConnectionCloseHeaderPresent and issubclass(cHTTPMessage, cHTTPResponse):
-        # A request with a "Connection: Close" header cannot have a body, as closing the
-        # connection after sending it would prevent the client from seeing the response.
-        fShowDebugOutput("Reading response body until disconnected...");
-        sb0Body = oSelf.fsbReadBytesUntilDisconnected(u0MaxNumberOfBytes = u0MaxBodySize);
+          if not bDisconnected:
+            # More "headers" may follow.
+            o0AdditionalHeaders = oSelf.__fo0ReadAndParseHeaders(
+              cHTTPMessage,
+              u0MaxHeaderNameSize,
+              u0MaxHeaderValueSize,
+              u0MaxNumberOfHeaders,
+              bStrictErrorChecking,
+            );
+            if o0AdditionalHeaders:
+              for sbIllegalHeaderName in [b"Transfer-Encoding", b"Content-Length"]:
+                o0IllegalHeader = o0AdditionalHeaders.fo0GetUniqueHeaderForName(sbIllegalHeaderName);
+                if o0IllegalHeader is not None:
+                  raise cHTTPInvalidMessageException(
+                    "The message was not valid because it contained a %s header after the chunked body." % sbIllegalHeaderName,
+                    o0Connection = oSelf,
+                    dxDetails = {"oIllegalHeader": o0IllegalHeader},
+                  );
+        elif u0ContentLengthHeaderValue is not None:
+          fShowDebugOutput("Reading %d bytes response body..." % u0ContentLengthHeaderValue);
+          sb0Body = oSelf.fsbReadBytes(u0ContentLengthHeaderValue);
+        elif bConnectionCloseHeaderPresent and issubclass(cHTTPMessage, cHTTPResponse):
+          # A request with a "Connection: Close" header cannot have a body, as closing the
+          # connection after sending it would prevent the client from seeing the response.
+          fShowDebugOutput("Reading response body until disconnected...");
+          sb0Body = oSelf.fsbReadBytesUntilDisconnected(u0MaxNumberOfBytes = u0MaxBodySize);
+        else:
+          fShowDebugOutput("No response body expected.");
       else:
         fShowDebugOutput("No response body expected.");
       oMessage = cHTTPMessage(
@@ -301,18 +338,16 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
         o0AdditionalHeaders = o0AdditionalHeaders,
         **dxConstructorStatusLineArguments
       );
-      fShowDebugOutput("%s received from %s." % (oMessage, oSelf));
-      if gbDebugOutputFullHTTPMessages:
-        fShowDebugOutput(str(oMessage.fsbSerialize(), 'latin1'));
-      
-      oSelf.fFireCallbacks("message received", oMessage);
-      
-      return oMessage;
-    except cHTTPInvalidMessageException:
-      # When an invalid message is detected, we disconnect because we cannot
-      # guarantee we can interpret the data correctly anymore.
-      oSelf.fDisconnect();
+    except Exception as oException:
+      oSelf.fFireCallbacks("receiving message failed", oException);
       raise;
+    fShowDebugOutput("%s received from %s." % (oMessage, oSelf));
+    if gbDebugOutputFullHTTPMessages:
+      fShowDebugOutput(str(oMessage.fsbSerialize(), 'latin1'));
+    
+    oSelf.fFireCallbacks("received message", oMessage);
+    
+    return oMessage;
   
   @ShowDebugOutput
   def __fdxReadAndParseStatusLine(oSelf,
