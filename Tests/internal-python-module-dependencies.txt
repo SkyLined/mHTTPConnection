@@ -30,3 +30,4 @@ token
 tokenize
 traceback
 urllib
+weakref
