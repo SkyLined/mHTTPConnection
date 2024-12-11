@@ -272,43 +272,30 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
   def __fo0StartTransactionOnExistingConnection(oSelf,
     n0zTransactionTimeoutInSeconds,
   ):
-    # We need to postpone and terminate callbacks because we have a lock that
-    # these callbacks also want. If we do not postpone them, there will be a
-    # deadlock.
-    oSelf.__oConnectionsPropertyLock.fAcquire();
-    aoConnectionsWithPotentiallyPostponedTerminatedCallbacks = [];
-    try:
-      # Try to find a connection that is available:
-      for oConnection in oSelf.__aoConnections:
-        if oSelf.__bStopping:
-          return None;
-        fShowDebugOutput(oSelf, "Testing if existing connection is available: %s" % repr(oConnection));
-        oConnection.fPostponeTerminatedCallback();
-        aoConnectionsWithPotentiallyPostponedTerminatedCallbacks.append(oConnection);
-        try: # Try to start a transaction; this will only succeed on an idle connection.
-          oConnection.fStartTransaction(
-            n0TimeoutInSeconds = fxGetFirstProvidedValue(n0zTransactionTimeoutInSeconds, gn0DefaultConnectionTransactionTimeoutInSeconds),
-          );
-          oConnection.fThrowExceptionIfSendingRequestIsNotPossible();
-        except cTCPIPConnectionCannotBeUsedConcurrentlyException:
-          fShowDebugOutput(oSelf, "Connection is use: %s." % oConnection);
-        except cTCPIPConnectionShutdownException:
-          fShowDebugOutput(oSelf, "Connection shut down: %s." % oConnection);
-          oConnection.fDisconnect();
-        except cTCPIPConnectionDisconnectedException:
-          fShowDebugOutput(oSelf, "Connection disconnected: %s." % oConnection);
-        except cHTTPConnectionOutOfBandDataException:
-          fShowDebugOutput(oSelf, "Connection received out-of-band data: %s." % oConnection);
-          oConnection.fDisconnect();
-        else:
-          fShowDebugOutput(oSelf, "Reusing existing connection to server: %s." % oConnection);
-          return oConnection;
-      return None;
-    finally:
-      oSelf.__oConnectionsPropertyLock.fRelease();
-      # Fire any postponed terminated callbacks.
-      for oConnection in aoConnectionsWithPotentiallyPostponedTerminatedCallbacks:
-        oConnection.fFireTerminatedCallbackIfPostponed();
+    aoConnections = oSelf.__aoConnections[:];
+    for oConnection in aoConnections:
+      if oSelf.__bStopping:
+        return None;
+      fShowDebugOutput(oSelf, "Testing if existing connection is available: %s" % repr(oConnection));
+      try: # Try to start a transaction; this will only succeed on an idle connection.
+        oConnection.fStartTransaction(
+          n0TimeoutInSeconds = fxGetFirstProvidedValue(n0zTransactionTimeoutInSeconds, gn0DefaultConnectionTransactionTimeoutInSeconds),
+        );
+        oConnection.fThrowExceptionIfSendingRequestIsNotPossible();
+      except cTCPIPConnectionCannotBeUsedConcurrentlyException:
+        fShowDebugOutput(oSelf, "Connection is use: %s." % oConnection);
+      except cTCPIPConnectionShutdownException:
+        fShowDebugOutput(oSelf, "Connection shut down: %s." % oConnection);
+        oConnection.fDisconnect();
+      except cTCPIPConnectionDisconnectedException:
+        fShowDebugOutput(oSelf, "Connection disconnected: %s." % oConnection);
+      except cHTTPConnectionOutOfBandDataException:
+        fShowDebugOutput(oSelf, "Connection received out-of-band data: %s." % oConnection);
+        oConnection.fDisconnect();
+      else:
+        fShowDebugOutput(oSelf, "Reusing existing connection to server: %s." % oConnection);
+        return oConnection;
+    return None;
   
   @ShowDebugOutput
   def __foCreateNewConnectionAndStartTransaction(oSelf,
