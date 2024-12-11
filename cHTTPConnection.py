@@ -6,15 +6,23 @@ except ModuleNotFoundError as oException:
   ShowDebugOutput = lambda fx: fx; # NOP
   fShowDebugOutput = lambda x, s0 = None: x; # NOP
 
-from mHTTPProtocol import cHTTPRequest, cHTTPResponse, cURL;
-from mNotProvided import \
-  fxGetFirstProvidedValue, \
-  zNotProvided;
-from mTCPIPConnection import cTransactionalBufferedTCPIPConnection;
+from mHTTPProtocol import (
+  cHTTPInvalidMessageException,
+  cHTTPRequest,
+  cHTTPResponse,
+  cURL
+);
+from mNotProvided import (
+  fxGetFirstProvidedValue,
+  zNotProvided,
+);
+from mTCPIPConnection import (
+  cTransactionalBufferedTCPIPConnection
+);
 
-from .mExceptions import \
-    acExceptions, \
-    cHTTPInvalidMessageException;
+from .mExceptions import (
+  cHTTPConnectionOutOfBandDataException,
+);
 
 gbDebugOutputFullHTTPMessages = False;
 
@@ -54,43 +62,56 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
       "receiving message failed",
       "received message", 
       
-      "receiving request from client",
-      "receiving request from client failed",
-      "received request from client",
-      
+      "received out-of-band data from server",
+
       "sending request to server",
       "sending request to server failed",
       "sent request to server",
       
-      "receiving response from server",
-      "receiving response from server failed",
-      "received response from server",
+      "receiving request from client",
+      "receiving request from client failed",
+      "received request from client",
       
       "sending response to client",
       "sending response to client failed",
       "sent response to client",
+      
+      "receiving response from server",
+      "receiving response from server failed",
+      "received response from server",
     );
   
   def foGetURLForRemoteServer(oSelf):
     # Calling this only makes sense from a client on a connection to a server.
     return cURL(b"https" if oSelf.bSecure else b"http", oSelf.sbRemoteHost, oSelf.uRemotePortNumber);
-  
+
+  @ShowDebugOutput
+  def fThrowExceptionIfSendingRequestIsNotPossible(oSelf):
+    oSelf.fThrowExceptionIfShutdownOrDisconnected();
+    if oSelf.fbBytesAreAvailableForReading():
+      sbOutOfBandData = oSelf.fsbReadAvailableBytes();
+      fShowDebugOutput(oSelf, "Connection has out-of-band data from server: %s: %s." % (oSelf, repr(sbOutOfBandData)));
+      oSelf.fFireCallbacks("received out-of-band data", oSelf, sbOutOfBandData);
+      oSelf.fTerminate();
+      raise cHTTPConnectionOutOfBandDataException(
+        "received out-of-band data from server",
+        o0Connection = oSelf,
+        dxDetails = {"sbOutOfBandData": sbOutOfBandData},
+      );
+
   # Send HTTP Messages
   @ShowDebugOutput
   def fSendRequest(oSelf,
     oRequest,
   ):
+    oSelf.fThrowExceptionIfSendingRequestIsNotPossible();
     # Attempt to write a request to the connection.
-    # * Optionally end a transaction after attempting to send the request.
-    #   The transaction is always ended, even on an exception, except if
-    #   a transaction already exists for the connection and this function
-    #   is asked to start a new one.
     # * The connection must be fully open (== not shut down for reading or writing
     #   or closed). A `shutdown` or `disconnected` exception is thrown as
     #   appropriate if this is not the case.
-    # return False if an optional transaction could not be started.
-    # return True if the request was sent.
-    # Can throw timeout, shutdown or disconnected exception.
+    # * The connection must not have any buffered data from the server. An
+    #   `out-of-band data` exception is thrown if there is data in the buffer.
+    # Can throw out-of-band data, timeout, shutdown or disconnected exception.
     oSelf.fFireCallbacks("sending request to server", oRequest = oRequest);
     try:
       oSelf.__fSendMessage(oRequest);
@@ -536,6 +557,3 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
       u0zMaxNumberOfChunks = u0zMaxNumberOfChunks,
       u0MaxNumberOfChunksBeforeDisconnecting = u0MaxNumberOfChunksBeforeDisconnecting,
     );
-  
-for cException in acExceptions:
-  setattr(cHTTPConnection, cException.__name__, cException);
