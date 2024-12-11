@@ -17,6 +17,8 @@ class cHTTPConnectionException(Exception):
   def __repr__(oSelf):
     return "<%s.%s %s>" % (oSelf.__class__.__module__, oSelf.__class__.__name__, oSelf);
 
+class cHTTPMaximumNumberOfConnectionsToServerReachedException(cHTTPConnectionException):
+  pass;
 
 class cHTTPConnectionOutOfBandDataException(cHTTPConnectionException):
   pass;
@@ -24,4 +26,5 @@ class cHTTPConnectionOutOfBandDataException(cHTTPConnectionException):
 __all__ = [
   "cHTTPConnectionException",
   "cHTTPConnectionOutOfBandDataException",
+  "cHTTPMaximumNumberOfConnectionsToServerReachedException",
 ];

@@ -1,5 +1,6 @@
 from .cHTTPConnection import cHTTPConnection;
 from .cHTTPConnectionAcceptor import cHTTPConnectionAcceptor;
+from .cHTTPConnectionsToServerPool import cHTTPConnectionsToServerPool;
 from .mExceptions import (
   cHTTPConnectionException,
   cHTTPConnectionOutOfBandDataException,
@@ -11,5 +12,6 @@ __all__ = [
   "cHTTPConnectionAcceptor",
   "cHTTPConnectionException",
   "cHTTPConnectionOutOfBandDataException",
+  "cHTTPConnectionsToServerPool",
   "cHTTPMaximumNumberOfConnectionsToServerReachedException",
 ];
