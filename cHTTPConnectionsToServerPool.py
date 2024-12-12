@@ -34,7 +34,6 @@ from .mExceptions import  (
 # bug, where "too long" is defined by the following value:
 gnDeadlockTimeoutInSeconds = 1; # We're not doing anything time consuming, so this should suffice.
 gu0DefaultMaxNumberOfConnectionsToServer = 10;
-gn0DefaultConnectionTransactionTimeoutInSeconds = 10;
 
 class cHTTPConnectionsToServerPool(cWithCallbacks):
   @ShowDebugOutput
@@ -77,8 +76,8 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
       "resolving server hostname to ip address failed",
       "resolved server hostname to ip address",
       
-      "connecting to server",
-      "connecting to server failed",
+      "creating connection to server",
+      "creating connection to server failed",
       "created connection to server",
       "terminated connection to server",
       
@@ -199,7 +198,7 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
   def fbWait(oSelf, bTimeoutInSeconds):
     return oSelf.__oTerminatedLock.fbWait(bTimeoutInSeconds);
   
-  def fo0GetConnectionAndStartTransaction(
+  def fo0GetConnectionAndStartTransactionBeforeSendingRequest(
     oSelf,
     *,
     n0zConnectTimeoutInSeconds = zNotProvided,
@@ -212,7 +211,7 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
     # connection as having been passed externally, to prevent it from being
     # used as part of the regular pool. The caller is responsible for closing
     # the connection.
-    o0Connection = oSelf.__fo0GetConnectionAndStartTransaction(
+    o0Connection = oSelf.__fo0GetConnectionAndStartTransactionBeforeSendingRequest(
       n0zConnectTimeoutInSeconds,
       bSecureConnection,
       bzCheckHost,
@@ -231,7 +230,7 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
       oSelf.__oConnectionsPropertyLock.fRelease();
     return o0Connection;
   
-  def __fo0GetConnectionAndStartTransaction(
+  def __fo0GetConnectionAndStartTransactionBeforeSendingRequest(
     oSelf,
     n0zConnectTimeoutInSeconds,
     bSecureConnection,
@@ -246,7 +245,7 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
     n0EndTime = (time.time() + n0ConnectTimeoutInSeconds) if n0ConnectTimeoutInSeconds is not None else None;
     while not oSelf.__bStopping:
       # Existing idle connections may be used:
-      o0Connection = oSelf.__fo0StartTransactionOnExistingConnection(
+      o0Connection = oSelf.__fo0StartTransactionOnExistingConnectionBeforeSendingRequest(
         n0zTransactionTimeoutInSeconds,
       );
       if o0Connection is not None:
@@ -265,11 +264,11 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
         );
       except cHTTPMaximumNumberOfConnectionsToServerReachedException:
         # We have reached the max number of connections; try reusing one again.
-        pass;
+        raise;
     return None;
   
   @ShowDebugOutput
-  def __fo0StartTransactionOnExistingConnection(oSelf,
+  def __fo0StartTransactionOnExistingConnectionBeforeSendingRequest(oSelf,
     n0zTransactionTimeoutInSeconds,
   ):
     aoConnections = oSelf.__aoConnections[:];
@@ -279,7 +278,7 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
       fShowDebugOutput(oSelf, "Testing if existing connection is available: %s" % repr(oConnection));
       try: # Try to start a transaction; this will only succeed on an idle connection.
         oConnection.fStartTransaction(
-          n0TimeoutInSeconds = fxGetFirstProvidedValue(n0zTransactionTimeoutInSeconds, gn0DefaultConnectionTransactionTimeoutInSeconds),
+          n0TimeoutInSeconds = fxGetFirstProvidedValue(n0zTransactionTimeoutInSeconds, cHTTPConnection.n0DefaultTransactionTimeoutInSeconds),
         );
         oConnection.fThrowExceptionIfSendingRequestIsNotPossible();
       except cTCPIPConnectionCannotBeUsedConcurrentlyException:
@@ -354,13 +353,13 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
           sCanonicalName = sCanonicalName,
         ),
         f0ConnectingToIPAddressCallback = lambda sbHost, uPortNumber, sbIPAddress: oSelf.fFireCallbacks(
-          "connecting to server",
+          "creating connection to server",
           sbHost = sbHost,
           uPortNumber = uPortNumber,
           sbIPAddress = sbIPAddress,
         ),
         f0ConnectingToIPAddressFailedCallback = lambda oException, sbHost, uPortNumber, sbIPAddress: oSelf.fFireCallbacks(
-          "connecting to server failed",
+          "creating connection to server failed",
           sbHost = sbHost,
           uPortNumber = uPortNumber,
           sbIPAddress = sbIPAddress,
@@ -408,7 +407,7 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
       raise;
     # Start a transaction to prevent other threads from using it:
     oConnection.fStartTransaction(
-      n0TimeoutInSeconds = fxGetFirstProvidedValue(n0zTransactionTimeoutInSeconds, gn0DefaultConnectionTransactionTimeoutInSeconds),
+      n0TimeoutInSeconds = fxGetFirstProvidedValue(n0zTransactionTimeoutInSeconds, cHTTPConnection.n0DefaultTransactionTimeoutInSeconds),
     );
     # Add some event handlers
     # remove a pending connection and add the connection we created.
@@ -497,7 +496,7 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
     while 1:
       if oSelf.__bStopping:
         return None;
-      o0Connection = oSelf.__fo0GetConnectionAndStartTransaction(
+      o0Connection = oSelf.__fo0GetConnectionAndStartTransactionBeforeSendingRequest(
         n0zConnectTimeoutInSeconds = n0zConnectTimeoutInSeconds,
         bSecureConnection = True,
         bzCheckHost = oSelf.__bzCheckHost,
