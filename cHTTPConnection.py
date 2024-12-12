@@ -34,6 +34,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
   u0DefaultMaxBodySize = 1000*1000*1000;
   u0DefaultMaxChunkSize = 10*1000*1000;
   u0DefaultMaxNumberOfChunks = 1000*1000;
+  n0DefaultTransactionTimeoutInSeconds = 10;
   # The HTTP RFC does not provide an upper limit to the maximum number of characters a chunk size can contain.
   # So, by padding a valid chunk size on the left with "0", one could theoretically create a valid chunk header that has
   # an infinite size. To prevent us accepting such an obviously invalid value, we will accept no chunk size containing
@@ -188,7 +189,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
         u0zMaxBodySize = u0zMaxBodySize, u0zMaxChunkSize = u0zMaxChunkSize, u0zMaxNumberOfChunks = u0zMaxNumberOfChunks,
         u0MaxNumberOfChunksBeforeDisconnecting = None,
         bStrictErrorChecking = bStrictErrorChecking,
-        bDoesNotActuallyHaveABody = False, # Only for response to HEAD request
+        bCanHaveBody = True, # Only for response to HEAD request
       );
     except Exception as oException:
       oSelf.__o0LastReceivedRequest = None;
@@ -228,7 +229,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
         u0zMaxBodySize = u0zMaxBodySize, u0zMaxChunkSize = u0zMaxChunkSize, u0zMaxNumberOfChunks = u0zMaxNumberOfChunks,
         u0MaxNumberOfChunksBeforeDisconnecting = u0MaxNumberOfChunksBeforeDisconnecting,
         bStrictErrorChecking = bStrictErrorChecking,
-        bDoesNotActuallyHaveABody = o0Request and o0Request.sbMethod == b"HEAD", # Only for response to HEAD request
+        bCanHaveBody = o0Request is None or o0Request.sbMethod != b"HEAD", # Response to HEAD request cannot have body
       );
     except Exception as oException:
       oSelf.__o0LastSentRequest = None;
@@ -251,7 +252,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
     u0zMaxNumberOfChunks,
     u0MaxNumberOfChunksBeforeDisconnecting,
     bStrictErrorChecking,
-    bDoesNotActuallyHaveABody,
+    bCanHaveBody,
   ):
     # Read and parse a HTTP message.
     # Returns a cHTTPMessage instance.
@@ -282,46 +283,35 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
       );
       # Find out what headers are present and at the same time do some sanity checking:
       # (this can throw a cHTTPInvalidMessageException if multiple Content-Length headers exist with different values)
-      o0ContentLengthHeader = o0Headers and o0Headers.fo0GetUniqueHeaderForName(b"Content-Length");
-      bTransferEncodingChunkedHeaderPresent = o0Headers and o0Headers.fbHasUniqueValueForName(b"Transfer-Encoding", b"Chunked");
+      o0TransferEncodingHeader = o0Headers and o0Headers.fo0GetUniqueHeaderForName(b"Transfer-Encoding");
       sb0Body = None;
       a0sbBodyChunks = None;
       o0AdditionalHeaders = None;
       
-      if not bDoesNotActuallyHaveABody:
-        # Parse Content-Length header value if any
-        if o0ContentLengthHeader is None:
-          u0ContentLengthHeaderValue = None;
-        else:
-          try:
-            u0ContentLengthHeaderValue = int(o0ContentLengthHeader.sbValue);
-            if u0ContentLengthHeaderValue < 0:
-              raise ValueError("Content-Length value %s results in content length %s!?" % (o0ContentLengthHeader.sbValue, u0ContentLengthHeaderValue));
-          except ValueError:
-            raise cHTTPInvalidMessageException(
-              "The Content-Length header was invalid.",
-              o0Connection = oSelf,
-              dxDetails = {"sbContentLengthHeaderValue": o0ContentLengthHeader.sbValue},
-            );
-          if u0MaxBodySize is not None and u0ContentLengthHeaderValue > u0MaxBodySize:
-            raise cHTTPInvalidMessageException(
-              "The Content-Length header was too large.",
-              o0Connection = oSelf,
-              dxDetails = {"uContentLengthHeaderValue": u0ContentLengthHeaderValue, "uMaxBodySize": u0MaxBodySize},
-            );
+      oMessage = cHTTPMessage(
+        o0zHeaders = o0Headers,
+        **dxConstructorStatusLineArguments
+      );
       
+      if not bCanHaveBody:
+        fShowDebugOutput("No response body allowed.");
+      else:
         # Read and decode/decompress body
-        if bTransferEncodingChunkedHeaderPresent:
+        if o0TransferEncodingHeader and o0TransferEncodingHeader.sbValue.lower() == b"chunked":
           # Having both Content-Length and Transfer-Encoding: chunked headers is really weird but AFAICT not illegal.
-          a0sbBodyChunks, bDisconnected = oSelf.__fxReadAndParseBodyChunks(
+          asbBodyChunks = oSelf.__fasbReadAndParseBodyChunks(
             cHTTPMessage,
             u0MaxBodySize,
             u0MaxChunkSize,
             u0MaxNumberOfChunks,
             u0MaxNumberOfChunksBeforeDisconnecting,
-            u0ContentLengthHeaderValue,
           );
-          if not bDisconnected:
+          fShowDebugOutput("Message body is %d bytes in %d chunks." % (
+            sum(len(sbChunk) for sbChunk in asbBodyChunks),
+            len(asbBodyChunks),
+          ));
+          oMessage.fSetBodyChunks(asbBodyChunks);
+          if not oSelf.bShutdownForReading:
             # More "headers" may follow.
             o0AdditionalHeaders = oSelf.__fo0ReadAndParseHeaders(
               cHTTPMessage,
@@ -339,25 +329,45 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
                     o0Connection = oSelf,
                     dxDetails = {"oIllegalHeader": o0IllegalHeader},
                   );
-        elif u0ContentLengthHeaderValue is not None:
-          fShowDebugOutput("Reading %d bytes response body..." % u0ContentLengthHeaderValue);
-          sb0Body = oSelf.fsbReadBytes(u0ContentLengthHeaderValue);
-        elif issubclass(cHTTPMessage, cHTTPResponse):
-          # A request with a "Connection: Close" header cannot have a body, as closing the
-          # connection after sending it would prevent the client from seeing the response.
-          fShowDebugOutput("Reading response body until disconnected...");
-          sb0Body = oSelf.fsbReadBytesUntilDisconnected(u0MaxNumberOfBytes = u0MaxBodySize);
+              oMessage.o0AdditionalHeaders = o0AdditionalHeaders;
         else:
-          fShowDebugOutput("No response body expected.");
-      else:
-        fShowDebugOutput("No response body expected.");
-      oMessage = cHTTPMessage(
-        o0zHeaders = o0Headers,
-        sb0Body = sb0Body,
-        a0sbBodyChunks = a0sbBodyChunks,
-        o0AdditionalHeaders = o0AdditionalHeaders,
-        **dxConstructorStatusLineArguments
-      );
+          o0ContentLengthHeader = o0Headers and o0Headers.fo0GetUniqueHeaderForName(b"Content-Length");
+          # Parse Content-Length header value if any
+          if o0ContentLengthHeader is not None:
+            try:
+              u0ContentLengthHeaderValue = int(o0ContentLengthHeader.sbValue);
+              if u0ContentLengthHeaderValue < 0:
+                raise ValueError("Content-Length value %s results in content length %s!?" % (o0ContentLengthHeader.sbValue, u0ContentLengthHeaderValue));
+            except ValueError:
+              raise cHTTPInvalidMessageException(
+                "The Content-Length header was invalid.",
+                o0Connection = oSelf,
+                dxDetails = {"sbContentLengthHeaderValue": o0ContentLengthHeader.sbValue},
+              );
+            if u0MaxBodySize is not None and u0ContentLengthHeaderValue > u0MaxBodySize:
+              raise cHTTPInvalidMessageException(
+                "The Content-Length header was too large.",
+                o0Connection = oSelf,
+                dxDetails = {"uContentLengthHeaderValue": u0ContentLengthHeaderValue, "uMaxBodySize": u0MaxBodySize},
+              );
+            fShowDebugOutput("Reading %d bytes message body..." % u0ContentLengthHeaderValue);
+            sbBody = oSelf.fsbReadBytes(u0ContentLengthHeaderValue);
+            fShowDebugOutput("Message body is %d bytes." % len(sbBody));
+            oMessage.fSetBody(sbBody);
+          elif issubclass(cHTTPMessage, cHTTPResponse):
+            # A request with a "Connection: Close" header cannot have a body, as closing the
+            # connection after sending it would prevent the client from seeing the response.
+            fShowDebugOutput("Reading response body until disconnected...");
+            sbBody = oSelf.fsbReadBytesUntilDisconnected(u0MaxNumberOfBytes = u0MaxBodySize);
+            fShowDebugOutput("Response body is %d bytes." % len(sbBody));
+            oMessage.fSetBody(sbBody);
+          elif o0TransferEncodingHeader:
+            raise cHTTPInvalidMessageException(
+              "The Transfer-Encoding header without Content-Length header in a request is invalid.",
+              o0Connection = oSelf,
+              dxDetails = {"sbTransferEncodingHeaderValue": o0TransferEncodingHeader.sbValue},
+            );
+            fShowDebugOutput("No message body detected.");
     except Exception as oException:
       oSelf.fFireCallbacks("receiving message failed", oException);
       raise;
@@ -419,19 +429,14 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
     return cHTTPMessage.foParseHeaderLines(asbHeaderLines, o0Connection = oSelf, bStrictErrorChecking = bStrictErrorChecking);
   
   @ShowDebugOutput
-  def __fxReadAndParseBodyChunks(oSelf,
+  def __fasbReadAndParseBodyChunks(oSelf,
     cHTTPMessage,
     u0MaxBodySize,
     u0MaxChunkSize,
     u0MaxNumberOfChunks,
     u0MaxNumberOfChunksBeforeDisconnecting,
-    u0ContentLengthHeaderValue,
   ):
-    if u0ContentLengthHeaderValue is not None:
-      uContentLengthHeaderValue = u0ContentLengthHeaderValue;
-      fShowDebugOutput("Reading chunked response body WITH Content-Length = %d..." % uContentLengthHeaderValue);
-    else:
-      fShowDebugOutput("Reading chunked response body...");
+    fShowDebugOutput("Reading chunked response body...");
     asbBodyChunks = [];
     uTotalNumberOfBodyChunkBytes = 0;
     uTotalNumberOfBodyBytesInChunks = 0;
@@ -440,7 +445,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
         uMaxNumberOfChunksBeforeDisconnecting = u0MaxNumberOfChunksBeforeDisconnecting;
         if len(asbBodyChunks) == uMaxNumberOfChunksBeforeDisconnecting:
           oSelf.fDisconnect();
-          return (asbBodyChunks, True);
+          return asbBodyChunks;
       if u0MaxNumberOfChunks is not None:
         uMaxNumberOfChunks = u0MaxNumberOfChunks;
         if len(asbBodyChunks) == uMaxNumberOfChunks:
@@ -452,14 +457,6 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
       fShowDebugOutput("Reading response body chunk #%d header line..." % (len(asbBodyChunks) + 1));
       # Read size in the chunk header
       u0MaxChunkHeaderLineSize = oSelf.u0MaxChunkSizeCharacters + 2 if oSelf.u0MaxChunkSizeCharacters is not None else None;
-      if u0ContentLengthHeaderValue is not None:
-        uMinimumNumberOfBodyChunksBytes = uTotalNumberOfBodyChunkBytes + 5; # minimum is "0\r\n\r\n"
-        if uMinimumNumberOfBodyChunksBytes > uContentLengthHeaderValue:
-          raise cHTTPInvalidMessageException(
-            "There are more bytes in the body chunks than the Content-Length header indicated.",
-            o0Connection = oSelf,
-            dxDetails = {"uContentLengthHeaderValue": uContentLengthHeaderValue, "uMinimumNumberOfBodyChunksBytes": uMinimumNumberOfBodyChunksBytes},
-          );
       sb0ChunkHeaderLineCRLF = oSelf.fsb0ReadUntilMarker(b"\r\n", u0MaxNumberOfBytes = u0MaxChunkHeaderLineSize);
       if sb0ChunkHeaderLineCRLF is None:
         sbChunkHeaderLine = oSelf.fsbReadBufferedData();
@@ -486,14 +483,6 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
         );
       if uChunkSize == 0:
         break;
-      if u0ContentLengthHeaderValue is not None:
-        uMinimumNumberOfBodyChunksBytes = uTotalNumberOfBodyChunkBytes + uChunkSize + 2 + 7; # minimum after this chunk is "\r\n"+"0\r\n\r\n"
-        if uMinimumNumberOfBodyChunksBytes > uContentLengthHeaderValue:
-          raise cHTTPInvalidMessageException(
-            "There are more bytes in the body chunks than the Content-Length header indicated.",
-            o0Connection = oSelf,
-            dxDetails = {"uContentLengthHeaderValue": uContentLengthHeaderValue, "uMinimumNumberOfBodyChunksBytes": uMinimumNumberOfBodyChunksBytes},
-          );
       if u0MaxChunkSize is not None:
         uMaxChunkSize = u0MaxChunkSize;
         if uChunkSize > uMaxChunkSize:
@@ -523,14 +512,7 @@ class cHTTPConnection(cTransactionalBufferedTCPIPConnection):
         );
       uTotalNumberOfBodyChunkBytes += len(sbChunkCRLF);
       asbBodyChunks.append(sbChunkCRLF[:-2]);
-    if u0ContentLengthHeaderValue is not None:
-      if uTotalNumberOfBodyChunkBytes < uContentLengthHeaderValue:
-        raise cHTTPInvalidMessageException(
-          "There are less bytes in the body chunks than the Content-Length header indicated.",
-          o0Connection = oSelf,
-          dxDetails = {"uContentLengthHeaderValue": uContentLengthHeaderValue, "uTotalNumberOfBodyChunkBytes": uTotalNumberOfBodyChunkBytes},
-        );
-    return (asbBodyChunks, False);
+    return asbBodyChunks;
   
   @ShowDebugOutput
   def foSendRequestAndReceiveResponse(oSelf,
