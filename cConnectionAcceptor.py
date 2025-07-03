@@ -1,9 +1,9 @@
 from mTCPIPConnection import cTransactionalBufferedTCPIPConnectionAcceptor;
 
-from .cHTTPConnection import cHTTPConnection;
+from .cConnection import cConnection;
 
-class cHTTPConnectionAcceptor(cTransactionalBufferedTCPIPConnectionAcceptor):
+class cConnectionAcceptor(cTransactionalBufferedTCPIPConnectionAcceptor):
   u0DefaultNonSSLPortNumber = 80;
   u0DefaultSSLPortNumber = 443;
   def foCreateNewConnectionForPythonSocket(oSelf, oPythonSocket):
-    return cHTTPConnection(oPythonSocket, bCreatedLocally = False);
+    return cConnection(oPythonSocket, bCreatedLocally = False);

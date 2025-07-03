@@ -1,4 +1,4 @@
-class cHTTPConnectionException(Exception):
+class cConnectionException(Exception):
   def __init__(oSelf, sMessage, *, o0Connection = None, dxDetails = None):
     assert isinstance(dxDetails, dict), \
         "dxDetails must be a dict, not %s" % repr(dxDetails);
@@ -17,14 +17,14 @@ class cHTTPConnectionException(Exception):
   def __repr__(oSelf):
     return "<%s.%s %s>" % (oSelf.__class__.__module__, oSelf.__class__.__name__, oSelf);
 
-class cHTTPMaximumNumberOfConnectionsToServerReachedException(cHTTPConnectionException):
+class cMaximumNumberOfConnectionsToServerReachedException(cConnectionException):
   pass;
 
-class cHTTPConnectionOutOfBandDataException(cHTTPConnectionException):
+class cConnectionOutOfBandDataException(cConnectionException):
   pass;
 
 __all__ = [
-  "cHTTPConnectionException",
-  "cHTTPConnectionOutOfBandDataException",
-  "cHTTPMaximumNumberOfConnectionsToServerReachedException",
+  "cConnectionException",
+  "cConnectionOutOfBandDataException",
+  "cMaximumNumberOfConnectionsToServerReachedException",
 ];

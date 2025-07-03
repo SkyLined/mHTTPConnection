@@ -1,17 +1,17 @@
-from .cHTTPConnection import cHTTPConnection;
-from .cHTTPConnectionAcceptor import cHTTPConnectionAcceptor;
-from .cHTTPConnectionsToServerPool import cHTTPConnectionsToServerPool;
+from .cConnection import cConnection;
+from .cConnectionAcceptor import cConnectionAcceptor;
+from .cConnectionsToServerPool import cConnectionsToServerPool;
 from .mExceptions import (
-  cHTTPConnectionException,
-  cHTTPConnectionOutOfBandDataException,
-  cHTTPMaximumNumberOfConnectionsToServerReachedException,
+  cConnectionException,
+  cConnectionOutOfBandDataException,
+  cMaximumNumberOfConnectionsToServerReachedException,
 );
 
 __all__ = [
-  "cHTTPConnection",
-  "cHTTPConnectionAcceptor",
-  "cHTTPConnectionException",
-  "cHTTPConnectionOutOfBandDataException",
-  "cHTTPConnectionsToServerPool",
-  "cHTTPMaximumNumberOfConnectionsToServerReachedException",
+  "cConnection",
+  "cConnectionAcceptor",
+  "cConnectionException",
+  "cConnectionOutOfBandDataException",
+  "cConnectionsToServerPool",
+  "cMaximumNumberOfConnectionsToServerReachedException",
 ];

@@ -23,10 +23,10 @@ from mTCPIPConnection import (
   cTCPIPConnectionDisconnectedException,
 );
 
-from .cHTTPConnection import cHTTPConnection;
+from .cConnection import cConnection;
 from .mExceptions import  (
-  cHTTPConnectionOutOfBandDataException,
-  cHTTPMaximumNumberOfConnectionsToServerReachedException,
+  cConnectionOutOfBandDataException,
+  cMaximumNumberOfConnectionsToServerReachedException,
 );
 
 # To turn access to data store in multiple variables into a single transaction, we will create locks.
@@ -35,7 +35,7 @@ from .mExceptions import  (
 gnDeadlockTimeoutInSeconds = 1; # We're not doing anything time consuming, so this should suffice.
 gu0DefaultMaxNumberOfConnectionsToServer = 10;
 
-class cHTTPConnectionsToServerPool(cWithCallbacks):
+class cConnectionsToServerPool(cWithCallbacks):
   @ShowDebugOutput
   def __init__(oSelf,
     oServerBaseURL,
@@ -145,7 +145,7 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
         oSelf.__oTerminatedPropertyLock.fRelease();
     finally:
       oSelf.__oConnectionsPropertyLock.fRelease();
-    fShowDebugOutput("cHTTPConnectionsToServerPool terminated.");
+    fShowDebugOutput("cConnectionsToServerPool terminated.");
     oSelf.fFireCallbacks("terminated");
   
   @ShowDebugOutput
@@ -240,7 +240,7 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
   ):
     if oSelf.__bStopping:
       return None;
-    n0ConnectTimeoutInSeconds = fxGetFirstProvidedValue(n0zConnectTimeoutInSeconds, cHTTPConnection.n0DefaultConnectTimeoutInSeconds);
+    n0ConnectTimeoutInSeconds = fxGetFirstProvidedValue(n0zConnectTimeoutInSeconds, cConnection.n0DefaultConnectTimeoutInSeconds);
     fShowDebugOutput("Getting connection...");
     n0EndTime = (time.time() + n0ConnectTimeoutInSeconds) if n0ConnectTimeoutInSeconds is not None else None;
     while not oSelf.__bStopping:
@@ -262,7 +262,7 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
           n0zSecureTimeoutInSeconds,
           n0zTransactionTimeoutInSeconds,
         );
-      except cHTTPMaximumNumberOfConnectionsToServerReachedException:
+      except cMaximumNumberOfConnectionsToServerReachedException:
         # We have reached the max number of connections; try reusing one again.
         raise;
     return None;
@@ -278,7 +278,7 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
       fShowDebugOutput(oSelf, "Testing if existing connection is available: %s" % repr(oConnection));
       try: # Try to start a transaction; this will only succeed on an idle connection.
         oConnection.fStartTransaction(
-          n0TimeoutInSeconds = fxGetFirstProvidedValue(n0zTransactionTimeoutInSeconds, cHTTPConnection.n0DefaultTransactionTimeoutInSeconds),
+          n0TimeoutInSeconds = fxGetFirstProvidedValue(n0zTransactionTimeoutInSeconds, cConnection.n0DefaultTransactionTimeoutInSeconds),
         );
         oConnection.fThrowExceptionIfSendingRequestIsNotPossible();
       except cTCPIPConnectionCannotBeUsedConcurrentlyException:
@@ -288,7 +288,7 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
         oConnection.fDisconnect();
       except cTCPIPConnectionDisconnectedException:
         fShowDebugOutput(oSelf, "Connection disconnected: %s." % oConnection);
-      except cHTTPConnectionOutOfBandDataException:
+      except cConnectionOutOfBandDataException:
         fShowDebugOutput(oSelf, "Connection received out-of-band data: %s." % oConnection);
         oConnection.fDisconnect();
       else:
@@ -312,7 +312,7 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
         oSelf.__u0MaxNumberOfConnectionsToServer is not None
         and len(oSelf.__aoConnections) + oSelf.__uPendingConnects == oSelf.__u0MaxNumberOfConnectionsToServer
       ):
-        raise cHTTPMaximumNumberOfConnectionsToServerReachedException(
+        raise cMaximumNumberOfConnectionsToServerReachedException(
           "Maximum number of connections to server reached.",
           dxDetails = {
             "bServerIsAProxy": False,
@@ -324,7 +324,7 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
       oSelf.__oConnectionsPropertyLock.fRelease();
     # Try to establish a connection:
     try:
-      oConnection = cHTTPConnection.foConnectTo(
+      oConnection = cConnection.foConnectTo(
         sbHost = oSelf.__oServerBaseURL.sbHost,
         uPortNumber = oSelf.__oServerBaseURL.uPortNumber,
         n0zConnectTimeoutInSeconds = n0ConnectTimeoutInSeconds,
@@ -407,7 +407,7 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
       raise;
     # Start a transaction to prevent other threads from using it:
     oConnection.fStartTransaction(
-      n0TimeoutInSeconds = fxGetFirstProvidedValue(n0zTransactionTimeoutInSeconds, cHTTPConnection.n0DefaultTransactionTimeoutInSeconds),
+      n0TimeoutInSeconds = fxGetFirstProvidedValue(n0zTransactionTimeoutInSeconds, cConnection.n0DefaultTransactionTimeoutInSeconds),
     );
     # Add some event handlers
     # remove a pending connection and add the connection we created.
@@ -476,9 +476,8 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
     n0zConnectTimeoutInSeconds = zNotProvided,
     n0zSecureTimeoutInSeconds = zNotProvided,
     n0zTransactionTimeoutInSeconds = zNotProvided,
-    u0zMaxStatusLineSize = zNotProvided,
-    u0zMaxHeaderNameSize = zNotProvided,
-    u0zMaxHeaderValueSize = zNotProvided,
+    u0zMaxStartLineSize = zNotProvided,
+    u0zMaxHeaderLineSize = zNotProvided,
     u0zMaxNumberOfHeaders = zNotProvided,
     u0zMaxBodySize = zNotProvided,
     u0zMaxChunkSize = zNotProvided,
@@ -512,19 +511,18 @@ class cHTTPConnectionsToServerPool(cWithCallbacks):
         # Returns cResponse instance if response was received.
         oResponse = oConnection.foSendRequestAndReceiveResponse(
           oRequest,
-          u0zMaxStatusLineSize = u0zMaxStatusLineSize,
-          u0zMaxHeaderNameSize = u0zMaxHeaderNameSize,
-          u0zMaxHeaderValueSize = u0zMaxHeaderValueSize,
+          u0zMaxStartLineSize = u0zMaxStartLineSize,
+          u0zMaxHeaderLineSize = u0zMaxHeaderLineSize,
           u0zMaxNumberOfHeaders = u0zMaxNumberOfHeaders,
           u0zMaxBodySize = u0zMaxBodySize,
           u0zMaxChunkSize = u0zMaxChunkSize,
           u0zMaxNumberOfChunks = u0zMaxNumberOfChunks,
           u0MaxNumberOfChunksBeforeDisconnecting = u0MaxNumberOfChunksBeforeDisconnecting, # disconnect and return response once this many chunks are received.
         );
-        if oRequest.fbContainsConnectionCloseHeader():
+        if oRequest.fbHasConnectionCloseHeader():
           fShowDebugOutput("Closing connection per client request...");
           oConnection.fDisconnect();
-        elif oResponse.fbContainsConnectionCloseHeader():
+        elif oResponse.fbHasConnectionCloseHeader():
           fShowDebugOutput("Closing connection per server response...");
           oConnection.fDisconnect();
       finally:
